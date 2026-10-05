@@ -1,0 +1,27 @@
+# Local dev stores for qaro-analytics. Prod runs managed ClickHouse + Postgres.
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    ports: ["8123:8123", "9000:9000"]
+    environment:
+      CLICKHOUSE_DB: qaro_analytics
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    volumes:
+      - ch_data:/var/lib/clickhouse
+      - ./db/clickhouse:/docker-entrypoint-initdb.d:ro   # applies schema.sql on first boot
+
+  postgres:
+    image: postgres:16-alpine
+    ports: ["5432:5432"]
+    environment:
+      POSTGRES_USER: qaro
+      POSTGRES_PASSWORD: qaro
+      POSTGRES_DB: qaro_analytics
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./db/postgres:/docker-entrypoint-initdb.d:ro      # applies schema.sql on first boot
+
+volumes:
+  ch_data:
+  pg_data:
