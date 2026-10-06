@@ -1,0 +1,21 @@
+# AWS App Runner source config for the ingest API.
+# Create the App Runner service from the GitHub repo with:
+#   Source directory: ingest-api
+#   Health check path: /health   (HTTP)
+# Set the secret env vars (ClickHouse creds, DEV_APP_KEYS) in the App Runner
+# console — NOT here — so they never land in git.
+version: 1.0
+runtime: nodejs18
+build:
+  commands:
+    build:
+      # tsx/typescript are devDependencies but needed at runtime (no build step)
+      - npm ci --include=dev
+run:
+  runtime-version: 18.20.4
+  command: npm start
+  network:
+    port: 4100
+  env:
+    - name: PORT
+      value: "4100"
