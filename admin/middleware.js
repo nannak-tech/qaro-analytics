@@ -1,22 +1,39 @@
 import { NextResponse } from 'next/server';
+import { COOKIE, verifyToken } from './lib/jwt';
 
-// Single shared-password gate. The browser only ever holds the opaque session
-// token (ADMIN_SESSION_TOKEN); the password itself (ADMIN_PASSWORD) is checked
-// server-side in /api/login and never leaves the server.
-const COOKIE = 'qaro_admin';
+// Admin-only sections. Partner users are scoped to their own partner and are
+// bounced to their partner page if they try to reach global/admin views.
+const ADMIN_ONLY_EXACT = new Set(['/', '/funnel', '/partners']);
 
-export function middleware(req) {
-  const token = process.env.ADMIN_SESSION_TOKEN || '';
-  const ok = token && req.cookies.get(COOKIE)?.value === token;
-  if (ok) return NextResponse.next();
+export async function middleware(req) {
+  const { pathname } = req.nextUrl;
+  const session = await verifyToken(req.cookies.get(COOKIE)?.value);
 
-  const url = req.nextUrl.clone();
-  url.pathname = '/login';
-  url.search = '';
-  return NextResponse.redirect(url);
+  if (!session) {
+    const url = req.nextUrl.clone();
+    url.pathname = '/login';
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
+
+  // Partner (non-admin) scoping.
+  if (session.role !== 'qaro_admin') {
+    const home = session.pid ? `/partners/${session.pid}` : '/ads';
+    const blocked =
+      ADMIN_ONLY_EXACT.has(pathname) ||
+      (pathname.startsWith('/partners/') && session.pid && !pathname.startsWith(`/partners/${session.pid}`));
+    if (blocked) {
+      const url = req.nextUrl.clone();
+      url.pathname = home;
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
+  }
+
+  return NextResponse.next();
 }
 
-// Protect everything except the login page, the login API, and static assets.
+// Protect everything except auth pages/APIs and static assets.
 export const config = {
-  matcher: ['/((?!login|api/login|_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!login|accept|api/login|api/accept|_next/static|_next/image|favicon.ico).*)'],
 };

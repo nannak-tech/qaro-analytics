@@ -34,3 +34,26 @@ a { color: inherit; text-decoration: none; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
 th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+.inp, .sel {
+  width: 100%; padding: 9px 11px; border-radius: 9px; font-size: 14px;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+}
+.label { display: block; }
+.btn {
+  padding: 9px 16px; border-radius: 9px; border: 1px solid var(--border);
+  background: var(--brand); color: #fff; font-weight: 600; font-size: 14px; cursor: pointer;
+}
+.btn:disabled { opacity: 0.6; cursor: default; }
+.btn-ghost { background: transparent; color: var(--muted); }
+.err { color: var(--brand); font-size: 13px; margin: 6px 0; }
+.ok  { color: var(--brand-2); font-size: 13px; margin: 6px 0; }
+.badge {
+  display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px;
+  border: 1px solid var(--border); color: var(--muted);
+}
+.badge.active { color: var(--brand-2); border-color: color-mix(in srgb, var(--brand-2) 40%, var(--border)); }
+.badge.paused, .badge.draft { color: #eab308; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.grid-form { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+h1 { font-size: 22px; margin: 0; }

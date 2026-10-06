@@ -1,19 +1,24 @@
 import { getAdMetrics } from '@/lib/ingest';
+import { listPartners, getPartner } from '@/lib/controlplane';
+import { getSession, isAdmin } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdsPage({ searchParams }) {
   const sp = await searchParams;
   const days = Number(sp?.days) || 30;
-  const partnerId = sp?.partner_id || '';
+  const session = await getSession();
+  const admin = isAdmin(session);
+
+  // Partner users are locked to their own partner; admins pick one.
+  const partnerId = admin ? (sp?.partner_id || '') : (session?.pid || '');
+
+  const partners = admin ? await listPartners().catch(() => []) : [];
+  const partner = partnerId ? await getPartner(partnerId).catch(() => null) : null;
 
   let data = null, error = null;
   if (partnerId) {
-    try {
-      data = await getAdMetrics(partnerId, days);
-    } catch (e) {
-      error = e.message;
-    }
+    try { data = await getAdMetrics(partnerId, days); } catch (e) { error = e.message; }
   }
 
   const rows = data?.rows ?? [];
@@ -24,39 +29,42 @@ export default async function AdsPage({ searchParams }) {
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
-        <h1 style={{ margin: 0, fontSize: 22 }}>Ad metrics</h1>
+        <h1>Ad metrics</h1>
         <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
-          Impressions, clicks & CTR per campaign · last {days} days
+          Impressions, clicks & CTR per campaign{partner ? ` · ${partner.name}` : ''} · last {days} days
         </div>
       </div>
 
-      {/* Partner picker — campaigns are partner-scoped. */}
-      <form method="GET" style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        <input
-          name="partner_id"
-          defaultValue={partnerId}
-          placeholder="partner_id"
-          style={{
-            flex: '1 1 240px', maxWidth: 320, padding: '9px 12px', borderRadius: 9,
-            background: 'var(--panel-2)', border: '1px solid var(--border)', color: 'var(--text)',
-          }}
-        />
-        <input type="hidden" name="days" value={days} />
-        <button type="submit"
-          style={{
-            padding: '9px 16px', borderRadius: 9, border: '1px solid var(--border)',
-            background: 'var(--brand)', color: '#fff', fontWeight: 600, cursor: 'pointer',
-          }}>View</button>
-      </form>
+      {admin && (
+        <form method="GET" style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'end' }}>
+          <div style={{ flex: '1 1 260px', maxWidth: 340 }}>
+            <label className="stat-label label" htmlFor="partner">Partner</label>
+            <select id="partner" name="partner_id" className="sel" defaultValue={partnerId}>
+              <option value="">Select a partner…</option>
+              {partners.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div style={{ flex: '0 0 120px' }}>
+            <label className="stat-label label" htmlFor="days">Window</label>
+            <select id="days" name="days" className="sel" defaultValue={String(days)}>
+              <option value="7">7 days</option>
+              <option value="30">30 days</option>
+              <option value="90">90 days</option>
+            </select>
+          </div>
+          <button type="submit" className="btn">View</button>
+        </form>
+      )}
 
       {!partnerId && (
-        <div className="card muted">Enter a <code>partner_id</code> to see that partner’s campaign performance.</div>
+        <div className="card muted">
+          {admin ? 'Pick a partner to see their campaign performance.' : 'No partner is linked to your account yet.'}
+        </div>
       )}
 
       {error && (
         <div className="card" style={{ borderColor: 'var(--brand)', marginBottom: 20 }}>
-          <b>Can’t load ad metrics.</b>
-          <div className="muted" style={{ marginTop: 6 }}>{error}</div>
+          <b>Can’t load ad metrics.</b><div className="muted" style={{ marginTop: 6 }}>{error}</div>
         </div>
       )}
 

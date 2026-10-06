@@ -2,17 +2,11 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const LINKS = [
-  { href: '/', label: 'Overview' },
-  { href: '/funnel', label: 'Journey funnel' },
-  { href: '/ads', label: 'Ad metrics' },
-];
-
-export default function Nav() {
+export default function Nav({ links }) {
   const path = usePathname();
   return (
     <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {LINKS.map((l) => {
+      {links.map((l) => {
         const active = l.href === '/' ? path === '/' : path.startsWith(l.href);
         return (
           <Link

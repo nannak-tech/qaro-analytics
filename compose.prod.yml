@@ -35,6 +35,8 @@ services:
       PGSSL: disable                                   # internal network; not public
       DEV_APP_KEYS: qaro-customer:${APP_KEY}
       INTERNAL_QUERY_KEY: ${INTERNAL_QUERY_KEY}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}                       # bootstrap qaro_admin on first boot
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,8 +48,7 @@ services:
       PORT: "3100"
       INGEST_URL: http://ingest-api:4100
       INTERNAL_QUERY_KEY: ${INTERNAL_QUERY_KEY}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      ADMIN_SESSION_TOKEN: ${ADMIN_SESSION_TOKEN}
+      AUTH_SECRET: ${AUTH_SECRET}
     depends_on:
       - ingest-api
 
