@@ -1,15 +1,18 @@
 import express from 'express';
 import { eventsRouter } from './routes/events.js';
 import { queryRouter } from './routes/query.js';
-import { pingClickHouse } from './clickhouse.js';
 import { pingPostgres } from './pg.js';
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/health', async (_req, res) => {
-  const [clickhouse, postgres] = await Promise.all([pingClickHouse(), pingPostgres()]);
-  res.json({ status: 'ok', service: 'qaro-analytics-ingest', clickhouse, postgres });
+  const postgres = await pingPostgres();
+  res.status(postgres ? 200 : 503).json({
+    status: postgres ? 'ok' : 'degraded',
+    service: 'qaro-analytics-ingest',
+    postgres,
+  });
 });
 
 app.use(eventsRouter);

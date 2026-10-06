@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { resolveAppKey } from '../auth.js';
 import { validateEvent, type IngestContext } from '../validate.js';
-import { insertEvents, type EventRow } from '../clickhouse.js';
+import { insertEvents, type EventRow } from '../pg.js';
 
 const MAX_BATCH = Number(process.env.MAX_BATCH || 500);
 

@@ -22,9 +22,8 @@ QARO Flutter apps (nannak-app customer, nannakgarage partner)
                               • app-key auth + customer/session identity
                               • validate against a typed event taxonomy
                               • enrich (ip→geo, device) · dedupe by event_id
-                              ├── writes high-volume events ─────► ClickHouse   (events, ad metrics)
-                              └── reads control-plane data ──────► Postgres     (partners, campaigns,
-                                                                                 orgs, seats, auth)
+                              └── events + control plane ───────► Postgres  (events, ad metrics,
+                                                                              partners, campaigns, auth)
                                                           ▼
                               query-api (part of ingest-api): funnels, journeys, ad metrics
                                                           ▼
@@ -33,18 +32,19 @@ QARO Flutter apps (nannak-app customer, nannakgarage partner)
                                └── Partner portal: per-campaign impressions/clicks/CTR (multi-tenant)
 ```
 
-**Why two stores:** ClickHouse is the right engine for the high-volume append-only event stream
-and fast funnel/aggregation queries; Postgres holds the relational control plane (partners, orgs,
-seats, campaigns, ad placements, auth) that needs transactions and foreign keys.
+**One store:** Postgres holds both the append-only event stream *and* the relational control plane
+(partners, orgs, seats, campaigns, ad placements, auth) — fewest moving parts, no SaaS, runs on
+your own infra (RDS). The `events` table is append-only with a BRIN time index + dedupe by
+`event_id`; at higher volume it converts to monthly partitions (and ClickHouse remains a drop-in
+later if aggregation volume ever demands it — only the store layer would change).
 
 ## Monorepo layout
 
 | Folder | What | Stack |
 |--------|------|-------|
 | `flutter-tracker/` | Shared Flutter package: `EventTracker`, offline buffer, `NavigatorObserver`, tracked-tap widgets | Dart |
-| `ingest-api/` | Event ingestion + query API | Node 20 + TypeScript + Express + `@clickhouse/client` + `pg` |
-| `db/clickhouse/` | ClickHouse DDL (events + rollups) | SQL |
-| `db/postgres/` | Postgres DDL (control plane) | SQL |
+| `ingest-api/` | Event ingestion + query API | Node 20 + TypeScript + Express + `pg` |
+| `db/postgres/` | Postgres DDL — events + control plane | SQL |
 | `admin/` | Analytics admin + partner portal | Next.js 16 (App Router) |
 | `docs/` | Event schema (the contract) + design notes | — |
 
@@ -60,12 +60,9 @@ seats, campaigns, ad placements, auth) that needs transactions and foreign keys.
 ## Start (local)
 
 ```bash
-# 1. stores
-docker compose up -d            # clickhouse + postgres (see docker-compose.yml)
-# 2. apply schema
-clickhouse-client < db/clickhouse/schema.sql
-psql "$POSTGRES_URL" -f db/postgres/schema.sql
-# 3. ingest API
+# 1. store (schema auto-applies on first boot via docker-entrypoint-initdb.d)
+docker compose up -d            # postgres
+# 2. ingest API
 cd ingest-api && cp .env.example .env && npm i && npm run dev
 ```
 

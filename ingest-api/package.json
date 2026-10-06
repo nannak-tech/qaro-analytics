@@ -9,7 +9,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@clickhouse/client": "^1.8.0",
     "express": "^4.21.2",
     "pg": "^8.13.1"
   },

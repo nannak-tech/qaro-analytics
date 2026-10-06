@@ -1,10 +1,10 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
-import { ch } from '../clickhouse.js';
+import { pool } from '../pg.js';
 import { isEventName } from '../taxonomy.js';
 
 // Internal guard for query endpoints. The admin portal proxies to these with
 // INTERNAL_QUERY_KEY; partner-scoping (partner_id from the session) is enforced
-// by the admin layer in Phase 2. Never expose these directly to partners.
+// by the admin layer. Never expose these directly to partners.
 function requireQueryKey(req: Request, res: Response, next: NextFunction) {
   const want = process.env.INTERNAL_QUERY_KEY;
   if (want && req.header('x-internal-key') !== want) {
@@ -17,6 +17,7 @@ const days = (v: unknown, def: number) => {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 && n <= 400 ? Math.floor(n) : def;
 };
+const num = (v: unknown) => Number(v ?? 0);
 
 export const queryRouter = Router();
 queryRouter.use('/v1/metrics', requireQueryKey);
@@ -28,20 +29,24 @@ queryRouter.get('/v1/metrics/ad', async (req, res) => {
   if (!partnerId) return res.status(400).json({ error: 'partner_id required' });
   const since = days(req.query.days, 30);
   try {
-    const rs = await ch.query({
-      query: `
-        SELECT campaign_id,
-               uniqExactMerge(impressions) AS impressions,
-               uniqExactMerge(clicks)      AS clicks,
-               round(clicks / nullIf(impressions, 0) * 100, 2) AS ctr
-        FROM ad_metrics_daily
-        WHERE partner_id = {pid:String} AND day >= today() - {d:UInt16}
+    const { rows } = await pool.query(
+      `SELECT campaign_id,
+              count(*) FILTER (WHERE event_name = 'ad_impression') AS impressions,
+              count(*) FILTER (WHERE event_name = 'ad_click')      AS clicks
+         FROM events
+        WHERE partner_id = $1
+          AND event_name IN ('ad_impression','ad_click')
+          AND ts_server >= now() - ($2 || ' days')::interval
         GROUP BY campaign_id
         ORDER BY impressions DESC`,
-      query_params: { pid: partnerId, d: since },
-      format: 'JSONEachRow',
+      [partnerId, since],
+    );
+    const out = rows.map((r) => {
+      const imp = num(r.impressions), clk = num(r.clicks);
+      return { campaign_id: r.campaign_id, impressions: imp, clicks: clk,
+               ctr: imp ? Math.round((clk / imp) * 1000) / 10 : 0 };
     });
-    res.json({ partner_id: partnerId, days: since, rows: await rs.json() });
+    res.json({ partner_id: partnerId, days: since, rows: out });
   } catch (e: any) {
     res.status(500).json({ error: e?.message });
   }
@@ -51,59 +56,70 @@ queryRouter.get('/v1/metrics/ad', async (req, res) => {
 queryRouter.get('/v1/metrics/events', async (req, res) => {
   const since = days(req.query.days, 30);
   try {
-    const rs = await ch.query({
-      query: `
-        SELECT day, event_name,
-               countMerge(events)    AS events,
-               uniqMerge(sessions)   AS sessions,
-               uniqMerge(customers)  AS customers
-        FROM event_counts_daily
-        WHERE day >= today() - {d:UInt16}
+    const { rows } = await pool.query(
+      `SELECT date_trunc('day', ts_server)::date AS day,
+              event_name,
+              count(*)                   AS events,
+              count(distinct session_id) AS sessions,
+              count(distinct customer_id) AS customers
+         FROM events
+        WHERE ts_server >= now() - ($1 || ' days')::interval
         GROUP BY day, event_name
         ORDER BY day`,
-      query_params: { d: since },
-      format: 'JSONEachRow',
-    });
-    res.json({ days: since, rows: await rs.json() });
+      [since],
+    );
+    res.json({ days: since, rows: rows.map((r) => ({
+      day: r.day, event_name: r.event_name,
+      events: num(r.events), sessions: num(r.sessions), customers: num(r.customers),
+    })) });
   } catch (e: any) {
     res.status(500).json({ error: e?.message });
   }
 });
 
-// ---- Funnel / drop-off (ClickHouse windowFunnel) ----------------------------
+// ---- Funnel / drop-off (ordered steps) --------------------------------------
 // GET /v1/funnel?steps=booking_started,slot_selected,payment_started,order_paid&days=30
 queryRouter.get('/v1/funnel', async (req, res) => {
   const steps = String(req.query.steps || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (steps.length < 2 || steps.length > 10) return res.status(400).json({ error: '2..10 steps' });
   if (!steps.every(isEventName)) return res.status(400).json({ error: 'all steps must be known event_names' });
   const since = days(req.query.days, 30);
-  const windowSec = 7 * 24 * 3600; // a step counts if it follows within 7 days
 
-  // Step names are validated against the taxonomy above → safe to inline.
-  const conds = steps.map((s) => `event_name = '${s}'`).join(', ');
+  // Step names are validated against the closed taxonomy → safe to inline.
+  // Per session: first time each step occurred; count sessions where the step
+  // happened at/after the previous step (ordered funnel).
+  const firsts = steps
+    .map((s, i) => `min(ts_server) FILTER (WHERE event_name = '${s}') AS t${i}`)
+    .join(',\n           ');
+  const reached = steps
+    .map((_, i) => {
+      const conds = [`t${i} IS NOT NULL`];
+      for (let k = 1; k <= i; k++) conds.push(`t${k} >= t${k - 1}`);
+      return `count(*) FILTER (WHERE ${conds.join(' AND ')}) AS r${i}`;
+    })
+    .join(',\n           ');
+  const names = steps.map((s) => `'${s}'`).join(',');
+
   try {
-    const rs = await ch.query({
-      query: `
-        SELECT level, count() AS sessions FROM (
-          SELECT session_id, windowFunnel({w:UInt32})(ts_server, ${conds}) AS level
-          FROM events
-          WHERE event_name IN ({names:Array(String)}) AND ts_server >= now() - {d:UInt32}
-          GROUP BY session_id
-        )
-        GROUP BY level ORDER BY level`,
-      query_params: { w: windowSec, names: steps, d: since * 24 * 3600 },
-      format: 'JSONEachRow',
-    });
-    const levels = (await rs.json()) as { level: number; sessions: string }[];
-    // Convert "reached exactly level N" → cumulative "reached step i or further".
-    const byLevel = new Map(levels.map((r) => [Number(r.level), Number(r.sessions)]));
-    const total = [...byLevel.values()].reduce((a, b) => a + b, 0);
+    const { rows } = await pool.query(
+      `WITH s AS (
+         SELECT session_id,
+           ${firsts}
+         FROM events
+         WHERE event_name IN (${names})
+           AND ts_server >= now() - interval '${since} days'
+         GROUP BY session_id
+       )
+       SELECT ${reached} FROM s`,
+    );
+    const row = rows[0] || {};
+    const base = num(row.r0); // sessions that entered the funnel (reached step 1)
     const funnel = steps.map((name, i) => {
-      let reached = 0;
-      for (const [lvl, n] of byLevel) if (lvl >= i + 1) reached += n;
-      return { step: name, index: i, reached, pct: total ? Math.round((reached / total) * 1000) / 10 : 0 };
+      const reachedN = num(row[`r${i}`]);
+      return { step: name, index: i, reached: reachedN,
+               pct: base ? Math.round((reachedN / base) * 1000) / 10 : 0 };
     });
-    res.json({ days: since, total_sessions: total, funnel });
+    res.json({ days: since, entrants: base, funnel });
   } catch (e: any) {
     res.status(500).json({ error: e?.message });
   }

@@ -1,5 +1,5 @@
 import { isEventName, PROVENANCE, AD_EVENTS, type EventName } from './taxonomy.js';
-import type { EventRow } from './clickhouse.js';
+import type { EventRow } from './pg.js';
 
 export interface IngestContext {
   appName: string;      // resolved from the app key
@@ -11,18 +11,17 @@ export interface IngestContext {
 type Ok = { ok: true; row: EventRow };
 type Err = { ok: false; error: string };
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const asStr = (v: unknown, max = 512): string =>
   v == null ? '' : String(v).slice(0, max);
 const asNumOrNull = (v: unknown): number | null =>
   typeof v === 'number' && Number.isFinite(v) ? v : null;
 
-function chDate(d: Date): string {
-  // 'YYYY-MM-DD HH:MM:SS.mmm' in UTC (ClickHouse DateTime64)
-  return d.toISOString().replace('T', ' ').replace('Z', '');
-}
-function clientDate(v: unknown, fallback: Date): string {
+function isoClient(v: unknown, fallback: Date): string {
   const d = typeof v === 'string' ? new Date(v) : null;
-  return chDate(d && !isNaN(d.getTime()) ? d : fallback);
+  return (d && !isNaN(d.getTime()) ? d : fallback).toISOString();
 }
 
 /** Validate one raw event against the taxonomy + envelope, producing a flat row. */
@@ -35,6 +34,7 @@ export function validateEvent(raw: any, ctx: IngestContext): Ok | Err {
 
   const eventId = asStr(raw.event_id, 64);
   if (!eventId) return { ok: false, error: 'missing event_id' };
+  if (!UUID_RE.test(eventId)) return { ok: false, error: 'event_id not a uuid' };
 
   const anonymousId = asStr(raw.anonymous_id, 128);
   const sessionId = asStr(raw.session_id, 128);
@@ -50,17 +50,20 @@ export function validateEvent(raw: any, ctx: IngestContext): Ok | Err {
   const device = (raw.device && typeof raw.device === 'object') ? raw.device : {};
   const geo = (raw.geo && typeof raw.geo === 'object') ? raw.geo : {};
 
-  let properties = '{}';
-  if (raw.properties && typeof raw.properties === 'object') {
-    try { properties = JSON.stringify(raw.properties).slice(0, 8192); } catch { properties = '{}'; }
+  let properties: Record<string, unknown> = {};
+  if (raw.properties && typeof raw.properties === 'object' && !Array.isArray(raw.properties)) {
+    // cap serialized size to keep rows small
+    try {
+      if (JSON.stringify(raw.properties).length <= 8192) properties = raw.properties;
+    } catch { properties = {}; }
   }
 
   const row: EventRow = {
     event_id: eventId,
     event_name: eventName,
     provenance: PROVENANCE[eventName],
-    ts_server: chDate(ctx.tsServer),
-    ts_client: clientDate(raw.ts_client, ctx.tsServer),
+    ts_server: ctx.tsServer.toISOString(),
+    ts_client: isoClient(raw.ts_client, ctx.tsServer),
     anonymous_id: anonymousId,
     customer_id: asNumOrNull(raw.customer_id),
     session_id: sessionId,
