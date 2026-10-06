@@ -3,11 +3,16 @@
 Stack: **Postgres (RDS)** as the single store + **ingest-api on AWS App Runner** +
 DNS `analytics.qaro.ae`. No SaaS, all in-house.
 
-## 1. Postgres (RDS)
+## 1. Postgres
 
-Use a dedicated database for analytics — either a new small RDS Postgres instance, or a new
-database on an existing RDS (keep it separate from the app's transactional DB so heavy
-analytics queries never contend with production traffic).
+Analytics needs its **own Postgres**, kept separate from the app's transactional DB (which is
+MySQL) so heavy analytics queries never contend with production. Two options:
+
+- **RDS Postgres** — managed; small instance (`db.t3.micro`). Follow this section.
+- **Self-hosted Postgres on EC2** — cheapest; see **[SELF_HOSTED_POSTGRES.md](SELF_HOSTED_POSTGRES.md)**
+  for the full container + EBS + backup runbook, then skip to step 2.
+
+### RDS Postgres
 
 1. Create the database, e.g. `qaro_analytics`, and a role `ingest` with privileges on it.
 2. **Apply the schema** — from anywhere with network access to the RDS (a bastion, an app
