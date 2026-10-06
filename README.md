@@ -66,4 +66,10 @@ docker compose up -d            # postgres
 cd ingest-api && cp .env.example .env && npm i && npm run dev
 ```
 
+## Deploy
+
+Easiest: one EC2 running the whole stack (Postgres + ingest-api + auto-HTTPS) via
+`compose.prod.yml` — see **[docs/DEPLOY_SIMPLE.md](docs/DEPLOY_SIMPLE.md)**. The managed
+alternative (App Runner + VPC connector) is in [docs/AWS_SETUP.md](docs/AWS_SETUP.md).
+
 See [`docs/EVENT_SCHEMA.md`](docs/EVENT_SCHEMA.md) for the event contract the Flutter apps emit.

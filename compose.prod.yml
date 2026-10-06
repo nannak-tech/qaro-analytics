@@ -1,0 +1,58 @@
+# One-box production stack: Postgres + ingest-api + Caddy (auto-HTTPS).
+# Everything runs on a single EC2. No App Runner, no VPC connector, no RDS.
+#
+#   cd qaro-analytics
+#   cp deploy/.env.example deploy/.env   # fill in the 3 secrets
+#   docker compose -f compose.prod.yml --env-file deploy/.env up -d --build
+#
+# Postgres is internal to this compose network only (never exposed). The API is
+# reached over HTTPS via Caddy; Caddy fetches a Let's Encrypt cert automatically
+# once analytics.qaro.ae points at this box.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ingest
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: qaro_analytics
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./db/postgres:/docker-entrypoint-initdb.d:ro   # schema auto-applies on first boot
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ingest -d qaro_analytics"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  ingest-api:
+    build: ./ingest-api
+    restart: always
+    environment:
+      PORT: "4100"
+      POSTGRES_URL: postgres://ingest:${POSTGRES_PASSWORD}@postgres:5432/qaro_analytics
+      PGSSL: disable                                   # internal network; not public
+      DEV_APP_KEYS: qaro-customer:${APP_KEY}
+      INTERNAL_QUERY_KEY: ${INTERNAL_QUERY_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - ingest-api
+
+volumes:
+  pg_data:
+  caddy_data:
+  caddy_config:

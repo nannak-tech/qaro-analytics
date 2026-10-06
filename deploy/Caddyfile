@@ -1,0 +1,8 @@
+# Auto-HTTPS reverse proxy for the ingest API.
+# Caddy fetches + renews a Let's Encrypt cert automatically, as soon as
+# analytics.qaro.ae resolves to this box and ports 80/443 are open.
+# Using a different domain? Change it here.
+
+analytics.qaro.ae {
+    reverse_proxy ingest-api:4100
+}
