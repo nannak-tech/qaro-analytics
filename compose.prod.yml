@@ -39,6 +39,18 @@ services:
       postgres:
         condition: service_healthy
 
+  admin:
+    build: ./admin
+    restart: always
+    environment:
+      PORT: "3100"
+      INGEST_URL: http://ingest-api:4100
+      INTERNAL_QUERY_KEY: ${INTERNAL_QUERY_KEY}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_SESSION_TOKEN: ${ADMIN_SESSION_TOKEN}
+    depends_on:
+      - ingest-api
+
   caddy:
     image: caddy:2-alpine
     restart: always
@@ -51,6 +63,7 @@ services:
       - caddy_config:/config
     depends_on:
       - ingest-api
+      - admin
 
 volumes:
   pg_data:

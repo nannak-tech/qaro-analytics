@@ -6,3 +6,8 @@
 analytics.qaro.ae {
     reverse_proxy ingest-api:4100
 }
+
+# Admin dashboard (customer-journey + ads). Password-gated in the app itself.
+admin.qaro.ae {
+    reverse_proxy admin:3100
+}
