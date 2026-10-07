@@ -41,11 +41,30 @@ class QaroEvents {
       _t.track('booking_started', properties: {'service_id': serviceId});
   static void bookingStep(String stepName, int stepIndex) =>
       _t.track('booking_step', properties: {'step_name': stepName, 'step_index': stepIndex});
+  static void slotSelected(dynamic slot, {dynamic serviceId}) =>
+      _t.track('slot_selected', properties: {
+        if (slot != null) 'slot': slot,
+        if (serviceId != null) 'service_id': serviceId,
+      });
+  static void vehicleSelected(dynamic vehicleId) =>
+      _t.track('vehicle_selected', properties: {if (vehicleId != null) 'vehicle_id': vehicleId});
+  static void addressSelected({dynamic addressId}) =>
+      _t.track('address_selected', properties: {if (addressId != null) 'address_id': addressId});
+  static void paymentStarted(dynamic orderId, {num? amount}) =>
+      _t.track('payment_started', properties: {
+        if (orderId != null) 'order_id': orderId,
+        if (amount != null) 'amount': amount,
+      });
   static void orderPlaced(dynamic orderId, {num? amount, bool? isPickup}) =>
       _t.track('order_placed', properties: {
         'order_id': orderId,
         if (amount != null) 'amount': amount,
         if (isPickup != null) 'is_pickup': isPickup,
+      });
+  static void orderPaid(dynamic orderId, {num? amount}) =>
+      _t.track('order_paid', properties: {
+        if (orderId != null) 'order_id': orderId,
+        if (amount != null) 'amount': amount,
       });
   static void orderCancelled(dynamic orderId) =>
       _t.track('order_cancelled', properties: {'order_id': orderId});
