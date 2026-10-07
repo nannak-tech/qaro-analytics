@@ -81,15 +81,20 @@ queryRouter.get('/v1/metrics/events', async (req, res) => {
 queryRouter.get('/v1/metrics/screens', async (req, res) => {
   const since = days(req.query.days, 30);
   try {
+    // Top pages are derived ONLY from screen_view events (a real page view),
+    // not from every event that happens to carry a screen context — otherwise
+    // lifecycle events (app_open, etc.) would surface as 0-view "pages".
     const { rows } = await pool.query(
-      `SELECT COALESCE(NULLIF(screen, ''), '(unknown)') AS screen,
-              count(*) FILTER (WHERE event_name = 'screen_view') AS views,
-              count(DISTINCT session_id)  AS sessions,
-              count(DISTINCT customer_id) AS customers
+      `SELECT screen,
+              count(*)                     AS views,
+              count(DISTINCT session_id)   AS sessions,
+              count(DISTINCT customer_id)  AS customers
          FROM events
-        WHERE ts_server >= now() - ($1 || ' days')::interval
-        GROUP BY 1
-        ORDER BY views DESC NULLS LAST`,
+        WHERE event_name = 'screen_view'
+          AND screen IS NOT NULL AND screen <> ''
+          AND ts_server >= now() - ($1 || ' days')::interval
+        GROUP BY screen
+        ORDER BY views DESC`,
       [since],
     );
     res.json({ days: since, rows: rows.map((r) => ({
