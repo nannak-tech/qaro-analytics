@@ -22,3 +22,9 @@ export const getFunnel = (steps, days = 30) =>
 
 export const getAdMetrics = (partnerId, days = 30) =>
   q(`/v1/metrics/ad?partner_id=${encodeURIComponent(partnerId)}&days=${days}`);
+
+export const getScreens = (days = 30) =>
+  q(`/v1/metrics/screens?days=${days}`);
+
+export const getInteractions = (days = 30) =>
+  q(`/v1/metrics/interactions?days=${days}`);

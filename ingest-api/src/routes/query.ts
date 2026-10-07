@@ -77,6 +77,56 @@ queryRouter.get('/v1/metrics/events', async (req, res) => {
   }
 });
 
+// ---- Top pages (screen_view grouped by page name) ---------------------------
+queryRouter.get('/v1/metrics/screens', async (req, res) => {
+  const since = days(req.query.days, 30);
+  try {
+    const { rows } = await pool.query(
+      `SELECT COALESCE(NULLIF(screen, ''), '(unknown)') AS screen,
+              count(*) FILTER (WHERE event_name = 'screen_view') AS views,
+              count(DISTINCT session_id)  AS sessions,
+              count(DISTINCT customer_id) AS customers
+         FROM events
+        WHERE ts_server >= now() - ($1 || ' days')::interval
+        GROUP BY 1
+        ORDER BY views DESC NULLS LAST`,
+      [since],
+    );
+    res.json({ days: since, rows: rows.map((r) => ({
+      screen: r.screen, views: num(r.views),
+      sessions: num(r.sessions), customers: num(r.customers),
+    })) });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message });
+  }
+});
+
+// ---- Interactions by page (CTA / contact / banner / link clicks) ------------
+queryRouter.get('/v1/metrics/interactions', async (req, res) => {
+  const since = days(req.query.days, 30);
+  try {
+    const { rows } = await pool.query(
+      `SELECT COALESCE(NULLIF(screen, ''), '(unknown)') AS screen,
+              event_name,
+              COALESCE(properties->>'cta', properties->>'label',
+                       NULLIF(placement, ''), '') AS cta,
+              count(*) AS clicks
+         FROM events
+        WHERE event_name IN ('cta_click','link_click','call_click','whatsapp_click',
+                             'directions_click','email_click','ad_click')
+          AND ts_server >= now() - ($1 || ' days')::interval
+        GROUP BY 1, 2, 3
+        ORDER BY clicks DESC`,
+      [since],
+    );
+    res.json({ days: since, rows: rows.map((r) => ({
+      screen: r.screen, event_name: r.event_name, cta: r.cta, clicks: num(r.clicks),
+    })) });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message });
+  }
+});
+
 // ---- Funnel / drop-off (ordered steps) --------------------------------------
 // GET /v1/funnel?steps=booking_started,slot_selected,payment_started,order_paid&days=30
 queryRouter.get('/v1/funnel', async (req, res) => {

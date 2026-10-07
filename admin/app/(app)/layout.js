@@ -11,6 +11,7 @@ export default async function AppLayout({ children }) {
   const links = admin
     ? [
         { href: '/', label: 'Overview' },
+        { href: '/pages', label: 'Pages & CTAs' },
         { href: '/funnel', label: 'Journey funnel' },
         { href: '/ads', label: 'Ad metrics' },
         { href: '/partners', label: 'Partners' },

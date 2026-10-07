@@ -13,6 +13,8 @@ export const EVENT_NAMES = [
   'ad_impression', 'ad_click',
   // contact
   'whatsapp_click', 'call_click', 'directions_click', 'email_click',
+  // generic interactions (carry `screen` + `cta`/`target` props)
+  'cta_click', 'link_click',
   // commerce
   'add_to_cart', 'booking_started', 'booking_step', 'slot_selected',
   'vehicle_selected', 'address_selected', 'payment_started',
@@ -38,6 +40,7 @@ export const PROVENANCE: Record<EventName, 'user' | 'system'> = {
   search: 'user', category_view: 'user', service_view: 'user', provider_view: 'user',
   ad_impression: 'system', ad_click: 'user',
   whatsapp_click: 'user', call_click: 'user', directions_click: 'user', email_click: 'user',
+  cta_click: 'user', link_click: 'user',
   add_to_cart: 'user', booking_started: 'user', booking_step: 'user', slot_selected: 'user',
   vehicle_selected: 'user', address_selected: 'user', payment_started: 'user',
   order_placed: 'user', order_paid: 'system', order_cancelled: 'user',

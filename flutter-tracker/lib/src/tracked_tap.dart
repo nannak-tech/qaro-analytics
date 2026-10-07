@@ -7,8 +7,25 @@ import 'event_tracker.dart';
 class QaroEvents {
   static final _t = QaroTracker.instance;
 
-  static void screen(String name, {String? referrer}) => _t.track('screen_view',
-      properties: {'screen_name': name, if (referrer != null) 'referrer_screen': referrer});
+  /// Record a page view AND set it as the current screen, so every subsequent
+  /// event (CTA taps, banner clicks, funnel steps) is stamped with this page.
+  /// Call from each screen's initState: `QaroEvents.screen('home');`
+  static void screen(String name, {String? referrer}) {
+    _t.setCurrentScreen(name);
+    _t.track('screen_view',
+        properties: {'screen_name': name, if (referrer != null) 'referrer_screen': referrer});
+  }
+
+  /// A button / call-to-action tap. `cta` is a short label (e.g. 'book_now').
+  /// The page is taken from the current screen unless `screen` is given.
+  static void cta(String cta, {String? screen, dynamic target}) =>
+      _t.track('cta_click',
+          properties: {'cta': cta, if (target != null) 'target': target}, screen: screen);
+
+  /// A navigational link tap (internal or external).
+  static void linkClick(String target, {String? screen, String? label}) =>
+      _t.track('link_click',
+          properties: {'target': target, if (label != null) 'label': label}, screen: screen);
 
   static void search(String query, {int? resultsCount}) => _t.track('search',
       properties: {'query': query, if (resultsCount != null) 'results_count': resultsCount});

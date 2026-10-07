@@ -1,27 +1,25 @@
 import 'package:flutter/widgets.dart';
 import 'event_tracker.dart';
 
-/// Fires `screen_view` automatically on navigation. Add to MaterialApp:
-///   navigatorObservers: [QaroRouteObserver()]
-///
-/// nannak-app pushes anonymous routes (no RouteSettings.name), so this falls
-/// back to the route's widget type. For clean names, stamp
-/// `RouteSettings(name: 'home')` in your navigation helper.
+/// Emits `screen_view` only for routes that carry a real `RouteSettings.name`.
+/// nannak-app mostly pushes anonymous routes, so page views are recorded
+/// explicitly instead — call `QaroEvents.screen('<page>')` in each screen's
+/// initState (that also sets the current screen for CTA/funnel events). This
+/// observer stays for any named routes and avoids emitting generic
+/// `MaterialPageRoute` noise.
 class QaroRouteObserver extends NavigatorObserver {
-  String _name(Route<dynamic>? route) {
-    if (route == null) return 'unknown';
-    final s = route.settings.name;
-    if (s != null && s.isNotEmpty) return s;
-    return route.settings.arguments?.runtimeType.toString() ??
-        route.runtimeType.toString();
+  String? _namedOrNull(Route<dynamic>? route) {
+    final s = route?.settings.name;
+    return (s != null && s.isNotEmpty) ? s : null;
   }
 
   void _view(Route<dynamic> route, Route<dynamic>? previous) {
-    final name = _name(route);
+    final name = _namedOrNull(route);
+    if (name == null) return; // anonymous route → handled by explicit screen()
     QaroTracker.instance.setCurrentScreen(name);
     QaroTracker.instance.track('screen_view', properties: {
       'screen_name': name,
-      if (previous != null) 'referrer_screen': _name(previous),
+      if (_namedOrNull(previous) != null) 'referrer_screen': _namedOrNull(previous),
     });
   }
 
@@ -39,9 +37,10 @@ class QaroRouteObserver extends NavigatorObserver {
 
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    // Returning to the previous screen — update context (no screen_view spam).
-    if (previousRoute is PageRoute) {
-      QaroTracker.instance.setCurrentScreen(_name(previousRoute));
+    // Restore context to the revealed page only if it has a real name.
+    final name = _namedOrNull(previousRoute);
+    if (previousRoute is PageRoute && name != null) {
+      QaroTracker.instance.setCurrentScreen(name);
     }
     super.didPop(route, previousRoute);
   }
