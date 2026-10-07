@@ -48,17 +48,23 @@ class QaroTracker with WidgetsBindingObserver {
 
     if (!config.enabled) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    _anonymousId = await AnonymousId.load(prefs);
-    _buffer = EventBuffer(prefs, config.maxBuffer);
-    _pending.addAll(_buffer!.load()); // replay anything unsent from last run
+    // Analytics must NEVER break the app. Any failure here degrades the tracker
+    // silently (in-memory only / disabled) and the app continues unaffected.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _anonymousId = await AnonymousId.load(prefs);
+      _buffer = EventBuffer(prefs, config.maxBuffer);
+      _pending.addAll(_buffer!.load()); // replay anything unsent from last run
 
-    WidgetsBinding.instance.addObserver(this);
-    _timer = Timer.periodic(config.flushInterval, (_) => flush());
+      WidgetsBinding.instance.addObserver(this);
+      _timer = Timer.periodic(config.flushInterval, (_) => flush());
 
-    track('session_start');
-    track('app_open');
-    unawaited(flush());
+      track('session_start');
+      track('app_open');
+      unawaited(flush());
+    } catch (_) {
+      // swallow — never surface analytics setup errors to the app
+    }
   }
 
   /// Update the logged-in customer id (call on login / logout).
@@ -75,30 +81,36 @@ class QaroTracker with WidgetsBindingObserver {
     String? screen,
   }) {
     if (!_initialized || !_config.enabled) return;
-    final (sid, _) = _session.touch();
-    final envelope = QaroEvent(
-      name: name,
-      properties: properties,
-      ad: ad,
-      screen: screen ?? _currentScreen,
-    ).toEnvelope(
-      anonymousId: _anonymousId,
-      customerId: _customerId,
-      sessionId: sid,
-      app: {
-        'name': _config.appName,
-        'version': _config.appVersion,
-        'build': _config.appBuild,
-        'platform': _config.platform,
-      },
-      device: {
-        'model': _config.deviceModel,
-        'os_version': _config.osVersion,
-        'locale': _config.locale,
-      },
-    );
-    _pending.add(envelope);
-    if (_pending.length >= _config.batchSize) unawaited(flush());
+    // Fully isolated: a tracking error can never surface into a user action
+    // (a tapped button, a placed order). Worst case the event is dropped.
+    try {
+      final (sid, _) = _session.touch();
+      final envelope = QaroEvent(
+        name: name,
+        properties: properties,
+        ad: ad,
+        screen: screen ?? _currentScreen,
+      ).toEnvelope(
+        anonymousId: _anonymousId,
+        customerId: _customerId,
+        sessionId: sid,
+        app: {
+          'name': _config.appName,
+          'version': _config.appVersion,
+          'build': _config.appBuild,
+          'platform': _config.platform,
+        },
+        device: {
+          'model': _config.deviceModel,
+          'os_version': _config.osVersion,
+          'locale': _config.locale,
+        },
+      );
+      _pending.add(envelope);
+      if (_pending.length >= _config.batchSize) unawaited(flush());
+    } catch (_) {
+      // swallow — analytics never affects app behaviour
+    }
   }
 
   /// Send queued events. Safe to call often; no-op while already flushing or empty.
