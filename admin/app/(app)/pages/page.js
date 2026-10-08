@@ -1,5 +1,5 @@
 import { getScreens, getInteractions, getDaily } from '@/lib/ingest';
-import { DailyTrend } from '@/components/Charts';
+import { DailyTrend, TopPagesBar } from '@/components/Charts';
 import RangeControls from '@/components/RangeControls';
 import { parseRange, rangeLabel } from '@/lib/range';
 
@@ -53,6 +53,14 @@ export default async function PagesView({ searchParams }) {
           { key: 'views', name: 'Page views', color: 'var(--brand)' },
           { key: 'interactions', name: 'Interactions', color: 'var(--brand-2)' },
         ]} />
+      </div>
+
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>Top pages by visits</div>
+        <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+          Visits per page · {rangeLabel(range)}
+        </div>
+        <TopPagesBar data={screens} />
       </div>
 
       <div className="card" style={{ marginBottom: 20 }}>

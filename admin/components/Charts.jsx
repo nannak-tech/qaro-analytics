@@ -1,7 +1,7 @@
 'use client';
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, Legend,
-  XAxis, YAxis, Tooltip, CartesianGrid,
+  BarChart, Bar, Cell, XAxis, YAxis, Tooltip, CartesianGrid,
 } from 'recharts';
 
 const fmtDay = (d) => {
@@ -81,6 +81,38 @@ export function UsersTrend({ data }) {
         <Line type="monotone" dataKey="users" name="Users" stroke="var(--brand)" strokeWidth={2} dot={false} isAnimationActive={false} />
         <Line type="monotone" dataKey="logged_in" name="Logged-in" stroke="var(--brand-2)" strokeWidth={2} dot={false} isAnimationActive={false} />
       </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+/**
+ * Horizontal bar chart of top pages by visits.
+ * data = [{ screen, views, sessions }]; already scoped to the active range filter.
+ * `limit` caps how many bars show (default 10).
+ */
+export function TopPagesBar({ data, limit = 10 }) {
+  if (!data?.length) {
+    return <div className="muted" style={{ padding: 40, textAlign: 'center' }}>No page views in this range</div>;
+  }
+  const rows = [...data].sort((a, b) => b.views - a.views).slice(0, limit);
+  // Give each page name room; grow height with the number of bars.
+  const height = Math.max(160, rows.length * 34 + 40);
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 0 }}>
+        <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" horizontal={false} />
+        <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--muted)', fontSize: 12 }} stroke="var(--border)" />
+        <YAxis type="category" dataKey="screen" width={140} tick={{ fill: 'var(--text)', fontSize: 12 }} stroke="var(--border)" />
+        <Tooltip
+          cursor={{ fill: 'var(--panel-2)' }}
+          contentStyle={{ background: 'var(--panel-2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)' }}
+          formatter={(v, _n, p) => [`${v} views · ${p?.payload?.sessions ?? 0} sessions`, p?.payload?.screen]} />
+        <Bar dataKey="views" radius={[0, 5, 5, 0]} isAnimationActive={false}>
+          {rows.map((r, i) => (
+            <Cell key={r.screen} fill={i === 0 ? 'var(--brand)' : 'var(--brand-2)'} />
+          ))}
+        </Bar>
+      </BarChart>
     </ResponsiveContainer>
   );
 }
