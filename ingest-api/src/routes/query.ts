@@ -254,22 +254,28 @@ queryRouter.get('/v1/users/activity', async (req, res) => {
   if (!uid) return res.status(400).json({ error: 'uid required' });
   if (kind !== 'customer' && kind !== 'anon') return res.status(400).json({ error: 'kind must be customer|anon' });
   if (kind === 'customer' && !/^\d+$/.test(uid)) return res.status(400).json({ error: 'bad customer uid' });
+  const est = String(req.query.est || '').trim();
   const cond = kind === 'customer' ? 'customer_id = $1::bigint' : 'anonymous_id = $1';
+  const params: unknown[] = [uid];
+  let estFilter = '';
+  if (est) { params.push(est); estFilter = `AND properties->>'establishment_id' = $${params.length}`; }
   try {
     const { rows } = await pool.query(
       `SELECT event_name, screen, properties->>'cta' AS cta, properties->>'target' AS target,
+              properties->>'establishment_name' AS establishment,
               session_id, ts_server, customer_mobile
          FROM events
         WHERE ${cond}
-          AND ${t.cond}
+          AND ${t.cond} ${estFilter}
         ORDER BY ts_server DESC
         LIMIT 300`,
-      [uid],
+      params,
     );
     const mobile = rows.find((r) => r.customer_mobile)?.customer_mobile || null;
-    res.json({ kind, uid, mobile, rows: rows.map((r) => ({
+    const establishment = rows.find((r) => r.establishment)?.establishment || null;
+    res.json({ kind, uid, mobile, establishment, rows: rows.map((r) => ({
       event_name: r.event_name, screen: r.screen, cta: r.cta, target: r.target,
-      session_id: r.session_id, ts: r.ts_server,
+      establishment: r.establishment, session_id: r.session_id, ts: r.ts_server,
     })) });
   } catch (e: any) {
     res.status(500).json({ error: e?.message });

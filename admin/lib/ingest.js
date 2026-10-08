@@ -40,8 +40,8 @@ export const getUsers = (range, search = '') =>
 export const getUsersDaily = (range) =>
   q(`/v1/users/daily?${rangeQS(range)}`);
 
-export const getUserActivity = (kind, uid, range) =>
-  q(`/v1/users/activity?kind=${encodeURIComponent(kind)}&uid=${encodeURIComponent(uid)}&${rangeQS(range)}`);
+export const getUserActivity = (kind, uid, range, est = '') =>
+  q(`/v1/users/activity?kind=${encodeURIComponent(kind)}&uid=${encodeURIComponent(uid)}&${rangeQS(range)}${est ? `&est=${encodeURIComponent(est)}` : ''}`);
 
 export const getEstablishments = (range) =>
   q(`/v1/establishments?${rangeQS(range)}`);

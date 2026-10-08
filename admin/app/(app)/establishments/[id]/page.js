@@ -102,7 +102,7 @@ export default async function EstablishmentDetail({ params, searchParams }) {
               {customers.map((c) => (
                 <tr key={`${c.kind}-${c.uid}`}>
                   <td>
-                    <Link href={`/users/${c.kind}/${encodeURIComponent(c.uid)}?${rangeQS(range)}`}
+                    <Link href={`/users/${c.kind}/${encodeURIComponent(c.uid)}?${rangeQS(range)}&est=${encodeURIComponent(decodeURIComponent(id))}`}
                           style={{ color: 'var(--text)', fontWeight: 600 }}>
                       {c.kind === 'customer' ? (maskMobile(c.mobile) || `customer #${c.uid}`)
                                              : <span className="mono">{c.uid.slice(0, 8)}…</span>}

@@ -24,10 +24,11 @@ export default async function UserActivity({ params, searchParams }) {
   const { kind, uid } = await params;
   const sp = await searchParams;
   const range = parseRange(sp);
+  const est = sp?.est || '';
   if (kind !== 'customer' && kind !== 'anon') notFound();
 
   let data = null, error = null;
-  try { data = await getUserActivity(kind, decodeURIComponent(uid), range); }
+  try { data = await getUserActivity(kind, decodeURIComponent(uid), range, est); }
   catch (e) { error = e.message; }
 
   const rows = data?.rows ?? [];
@@ -47,6 +48,7 @@ export default async function UserActivity({ params, searchParams }) {
             <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
               {kind === 'anon' && <span className="mono">{uid}</span>}
               {kind === 'anon' ? ' · ' : ''}{rows.length} events · {sessions} sessions · {rangeLabel(range)}
+              {est && <span style={{ color: 'var(--brand)' }}> · on {data?.establishment || est}</span>}
             </div>
           </div>
         </div>
