@@ -1,14 +1,7 @@
-import Link from 'next/link';
 import { getUsers } from '@/lib/ingest';
-import { maskMobile } from '@/lib/mask';
+import UserRow from '@/components/UserRow';
 
 export const dynamic = 'force-dynamic';
-
-const fmt = (d) => {
-  try { return new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); }
-  catch { return '—'; }
-};
-const shortId = (s) => (s && s.length > 12 ? `${s.slice(0, 8)}…` : s);
 
 export default async function UsersPage({ searchParams }) {
   const sp = await searchParams;
@@ -72,20 +65,7 @@ export default async function UsersPage({ searchParams }) {
             </tr></thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={`${r.kind}-${r.uid}`}>
-                  <td>
-                    <Link href={`/users/${r.kind}/${encodeURIComponent(r.uid)}?days=${Math.max(days, 90)}`}
-                          style={{ color: 'var(--text)', fontWeight: 600 }}>
-                      {r.kind === 'customer' ? (maskMobile(r.mobile) || `customer #${r.uid}`) : <span className="mono">{shortId(r.uid)}</span>}
-                    </Link>
-                  </td>
-                  <td>{r.kind === 'customer'
-                        ? <span className="badge active">logged-in</span>
-                        : <span className="badge">anonymous</span>}</td>
-                  <td style={{ textAlign: 'right' }}>{r.events.toLocaleString()}</td>
-                  <td style={{ textAlign: 'right' }}>{r.sessions.toLocaleString()}</td>
-                  <td className="muted">{fmt(r.last_seen)}</td>
-                </tr>
+                <UserRow key={`${r.kind}-${r.uid}`} user={r} days={days} />
               ))}
             </tbody>
           </table>
