@@ -34,5 +34,5 @@ export async function middleware(req) {
 
 // Protect everything except auth pages/APIs and static assets.
 export const config = {
-  matcher: ['/((?!login|accept|api/login|api/accept|_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!login|accept|api/login|api/accept|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|ico|webp)$).*)'],
 };
