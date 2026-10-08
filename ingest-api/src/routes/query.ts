@@ -390,6 +390,11 @@ function parseFunnelStep(raw: string): Step | null {
   if (kind === 'screen') {
     return { cond: `event_name = 'screen_view' AND screen = '${val}'`, label: `${val} (view)`, ev: 'screen_view' };
   }
+  // screenlike:<val> matches any screen CONTAINING <val>, e.g. screenlike:listing
+  // catches car_wash_listing, cleaning_listing, … as one "service listing" step.
+  if (kind === 'screenlike') {
+    return { cond: `event_name = 'screen_view' AND screen LIKE '%${val}%'`, label: `${val} (view)`, ev: 'screen_view' };
+  }
   if (kind === 'cta') {
     return { cond: `event_name = 'cta_click' AND properties->>'cta' = '${val}'`, label: `${val} (tap)`, ev: 'cta_click' };
   }

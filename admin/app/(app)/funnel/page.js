@@ -5,17 +5,43 @@ import { parseRange, rangeLabel, rangeQS } from '@/lib/range';
 
 export const dynamic = 'force-dynamic';
 
-// Steps can be a raw event, a page view (screen:<page>) or a CTA (cta:<label>),
-// so the journey funnel mirrors the Pages & CTAs events.
-const DEFAULT_STEPS = 'app_open,screen:home,screen:service_detail,booking_started,slot_selected,payment_started,order_paid';
+// Steps can be a raw event, a page view (screen:<page>), any page matching a
+// substring (screenlike:<val>), or a CTA (cta:<label>) — so the journey funnel
+// mirrors the real app flow built from pages + CTAs + events.
+const DEFAULT_STEPS = 'app_open,screen:home,screenlike:listing,screen:provider_detail,booking_started,slot_selected,cta:map_location_selected,screen:checkout_garage,cta:place_order,screen:order_success_garage,order_paid';
 
 const PRESETS = [
-  { key: 'full', label: 'Full journey', steps: DEFAULT_STEPS },
-  { key: 'booking', label: 'Booking → paid', steps: 'booking_started,slot_selected,payment_started,order_paid' },
-  { key: 'ondemand', label: 'Pick service → paid', steps: 'screen:roadside_landing,cta:select_service,screen:service_detail,booking_started,order_paid' },
-  { key: 'discovery', label: 'Browse → contact', steps: 'screen:home,screen:provider_detail,call_click' },
+  { key: 'full', label: 'Full journey (garage)', steps: DEFAULT_STEPS },
+  { key: 'ondemand', label: 'On-demand', steps: 'app_open,screen:roadside_landing,cta:select_service,screen:service_detail,booking_started,screen:checkout_ondemand,cta:place_order,order_paid' },
+  { key: 'booking', label: 'Booking → paid', steps: 'booking_started,slot_selected,cta:place_order,payment_started,order_paid' },
+  { key: 'discovery', label: 'Browse → contact', steps: 'screen:home,screenlike:listing,screen:provider_detail,call_click' },
   { key: 'auth', label: 'Login → verified', steps: 'screen:login,cta:send_otp,cta:verify_otp' },
 ];
+
+// Friendly display names per step spec, so the funnel reads like the real journey.
+const STEP_LABELS = {
+  'app_open': 'App open',
+  'screen:home': 'Home',
+  'screenlike:listing': 'Service listing',
+  'screen:provider_detail': 'Provider detail',
+  'screen:service_detail': 'Service detail',
+  'screen:roadside_landing': 'Roadside landing',
+  'cta:select_service': 'Select service',
+  'booking_started': 'Booking started',
+  'slot_selected': 'Slot selected',
+  'cta:map_location_selected': 'Address selected (map)',
+  'cta:address_label': 'Address added',
+  'screen:checkout_garage': 'Payment / review',
+  'screen:checkout_ondemand': 'Payment / review',
+  'cta:place_order': 'Place order',
+  'payment_started': 'Payment started',
+  'screen:order_success_garage': 'Confirmation',
+  'order_paid': 'Order paid',
+  'call_click': 'Called provider',
+  'screen:login': 'Login',
+  'cta:send_otp': 'OTP requested',
+  'cta:verify_otp': 'OTP verified',
+};
 
 export default async function FunnelPage({ searchParams }) {
   const sp = await searchParams;
@@ -30,7 +56,10 @@ export default async function FunnelPage({ searchParams }) {
     error = e.message;
   }
 
-  const funnel = data?.funnel ?? [];
+  const funnel = (data?.funnel ?? []).map((s) => ({
+    ...s,
+    step: STEP_LABELS[s.spec] || s.step,
+  }));
   const entrants = data?.entrants ?? 0;
   const last = funnel[funnel.length - 1];
   const overall = last?.pct ?? 0;
