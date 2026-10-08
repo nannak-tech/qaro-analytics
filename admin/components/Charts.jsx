@@ -106,6 +106,8 @@ export function TopPagesBar({ data, limit = 10 }) {
         <Tooltip
           cursor={{ fill: 'var(--panel-2)' }}
           contentStyle={{ background: 'var(--panel-2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)' }}
+          labelStyle={{ color: 'var(--text)' }}
+          itemStyle={{ color: 'var(--text)' }}
           formatter={(v, _n, p) => [`${v} views · ${p?.payload?.sessions ?? 0} sessions`, p?.payload?.screen]} />
         <Bar dataKey="views" radius={[0, 5, 5, 0]} isAnimationActive={false}>
           {rows.map((r, i) => (
