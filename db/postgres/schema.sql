@@ -53,6 +53,7 @@ CREATE INDEX IF NOT EXISTS idx_events_anon_ts   ON events (anonymous_id, ts_serv
 CREATE INDEX IF NOT EXISTS idx_events_mobile    ON events (customer_mobile) WHERE customer_mobile IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_events_campaign  ON events (partner_id, campaign_id, ts_server) WHERE campaign_id <> '';
 CREATE INDEX IF NOT EXISTS idx_events_props_gin ON events USING gin (properties);
+CREATE INDEX IF NOT EXISTS idx_events_establishment ON events ((properties->>'establishment_id')) WHERE properties->>'establishment_id' IS NOT NULL;
 
 -- ===========================================================================
 -- CONTROL PLANE — ingest keys, partners/orgs, seats, campaigns, ads.

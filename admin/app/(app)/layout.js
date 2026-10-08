@@ -14,6 +14,7 @@ export default async function AppLayout({ children }) {
         { href: '/pages', label: 'Pages & CTAs' },
         { href: '/funnel', label: 'Journey funnel' },
         { href: '/users', label: 'User activity' },
+        { href: '/establishments', label: 'Establishments' },
         { href: '/ads', label: 'Ad metrics' },
         { href: '/partners', label: 'Partners' },
       ]

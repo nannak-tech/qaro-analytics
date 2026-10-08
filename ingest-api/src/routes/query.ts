@@ -276,6 +276,91 @@ queryRouter.get('/v1/users/activity', async (req, res) => {
   }
 });
 
+// ---- Establishments: list partners/garages seen in events -------------------
+const EST_ACTIVITY = `event_name IN ('call_click','whatsapp_click','directions_click',
+  'email_click','cta_click','booking_started','slot_selected','order_placed','order_paid','order_cancelled')`;
+
+queryRouter.get('/v1/establishments', async (req, res) => {
+  const t = timeCond(req, 30);
+  try {
+    const { rows } = await pool.query(
+      `SELECT properties->>'establishment_id' AS id,
+              max(properties->>'establishment_name') AS name,
+              count(*) FILTER (WHERE event_name = 'screen_view' AND screen = 'provider_detail') AS views,
+              count(*) FILTER (WHERE ${EST_ACTIVITY}) AS activities,
+              count(DISTINCT COALESCE(customer_id::text, anonymous_id)) AS users,
+              count(DISTINCT customer_id) AS logged_in,
+              max(ts_server) AS last_seen
+         FROM events
+        WHERE properties->>'establishment_id' IS NOT NULL
+          AND properties->>'establishment_id' <> ''
+          AND ${t.cond}
+        GROUP BY id
+        ORDER BY activities DESC, views DESC
+        LIMIT 200`,
+    );
+    res.json({ ...t.label, rows: rows.map((r) => ({
+      id: r.id, name: r.name || null, views: num(r.views), activities: num(r.activities),
+      users: num(r.users), logged_in: num(r.logged_in), last_seen: r.last_seen,
+    })) });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message });
+  }
+});
+
+// ---- One establishment: page views + activity breakdown + customers ---------
+queryRouter.get('/v1/establishments/activity', async (req, res) => {
+  const id = String(req.query.id || '').trim();
+  if (!id) return res.status(400).json({ error: 'id required' });
+  const t = timeCond(req, 30);
+  try {
+    const [breakdown, customers, meta] = await Promise.all([
+      pool.query(
+        `SELECT event_name,
+                COALESCE(properties->>'cta', '') AS cta,
+                count(*) AS count,
+                count(DISTINCT COALESCE(customer_id::text, anonymous_id)) AS users
+           FROM events
+          WHERE properties->>'establishment_id' = $1 AND ${t.cond}
+          GROUP BY event_name, cta
+          ORDER BY count DESC`,
+        [id],
+      ),
+      pool.query(
+        `SELECT CASE WHEN customer_id IS NOT NULL THEN 'customer' ELSE 'anon' END AS kind,
+                CASE WHEN customer_id IS NOT NULL THEN customer_id::text ELSE anonymous_id END AS uid,
+                max(customer_mobile) AS mobile,
+                count(*) AS events,
+                max(ts_server) AS last_seen
+           FROM events
+          WHERE properties->>'establishment_id' = $1 AND ${t.cond}
+          GROUP BY kind, uid
+          ORDER BY last_seen DESC
+          LIMIT 100`,
+        [id],
+      ),
+      pool.query(
+        `SELECT max(properties->>'establishment_name') AS name,
+                count(*) FILTER (WHERE event_name = 'screen_view' AND screen = 'provider_detail') AS views
+           FROM events WHERE properties->>'establishment_id' = $1 AND ${t.cond}`,
+        [id],
+      ),
+    ]);
+    const m = meta.rows[0] || {};
+    res.json({
+      id, name: m.name || null, views: num(m.views),
+      activities: breakdown.rows.map((r) => ({
+        event_name: r.event_name, cta: r.cta, count: num(r.count), users: num(r.users),
+      })),
+      customers: customers.rows.map((r) => ({
+        kind: r.kind, uid: r.uid, mobile: r.mobile || null, events: num(r.events), last_seen: r.last_seen,
+      })),
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message });
+  }
+});
+
 // ---- Funnel / drop-off (ordered steps) --------------------------------------
 // A step is one of:
 //   <event_name>          e.g. booking_started   (a raw taxonomy event)

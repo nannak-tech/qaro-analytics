@@ -42,3 +42,9 @@ export const getUsersDaily = (range) =>
 
 export const getUserActivity = (kind, uid, range) =>
   q(`/v1/users/activity?kind=${encodeURIComponent(kind)}&uid=${encodeURIComponent(uid)}&${rangeQS(range)}`);
+
+export const getEstablishments = (range) =>
+  q(`/v1/establishments?${rangeQS(range)}`);
+
+export const getEstablishmentActivity = (id, range) =>
+  q(`/v1/establishments/activity?id=${encodeURIComponent(id)}&${rangeQS(range)}`);
