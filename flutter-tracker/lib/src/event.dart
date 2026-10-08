@@ -46,6 +46,7 @@ class QaroEvent {
   Map<String, dynamic> toEnvelope({
     required String anonymousId,
     required int? customerId,
+    String? customerMobile,
     required String sessionId,
     required Map<String, dynamic> app,
     required Map<String, dynamic> device,
@@ -56,6 +57,8 @@ class QaroEvent {
       'ts_client': tsClient.toUtc().toIso8601String(),
       'anonymous_id': anonymousId,
       'customer_id': customerId,
+      if (customerMobile != null && customerMobile.isNotEmpty)
+        'customer_mobile': customerMobile,
       'session_id': sessionId,
       'app': app,
       'device': device,

@@ -23,6 +23,7 @@ class QaroTracker with WidgetsBindingObserver {
 
   String _anonymousId = '';
   int? _customerId;
+  String? _customerMobile;
   String Function()? _authToken;
   String? _currentScreen;
 
@@ -37,12 +38,14 @@ class QaroTracker with WidgetsBindingObserver {
     QaroTrackerConfig config, {
     String Function()? authToken,
     int? customerId,
+    String? customerMobile,
   }) async {
     if (_initialized) return;
     _config = config;
     _transport = Transport(config);
     _authToken = authToken;
     _customerId = customerId;
+    _customerMobile = customerMobile;
     _session = SessionManager(config.sessionTimeout);
     _initialized = true;
 
@@ -67,8 +70,12 @@ class QaroTracker with WidgetsBindingObserver {
     }
   }
 
-  /// Update the logged-in customer id (call on login / logout).
-  void setCustomer(int? id) => _customerId = id;
+  /// Update the logged-in customer identity (call on login / logout).
+  /// `mobile` lets the dashboard show logged-in users by phone number.
+  void setCustomer(int? id, {String? mobile}) {
+    _customerId = id;
+    _customerMobile = mobile;
+  }
 
   /// Set by the route observer; used as the default `screen` on events.
   void setCurrentScreen(String? screen) => _currentScreen = screen;
@@ -93,6 +100,7 @@ class QaroTracker with WidgetsBindingObserver {
       ).toEnvelope(
         anonymousId: _anonymousId,
         customerId: _customerId,
+        customerMobile: _customerMobile,
         sessionId: sid,
         app: {
           'name': _config.appName,

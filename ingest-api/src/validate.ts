@@ -66,6 +66,7 @@ export function validateEvent(raw: any, ctx: IngestContext): Ok | Err {
     ts_client: isoClient(raw.ts_client, ctx.tsServer),
     anonymous_id: anonymousId,
     customer_id: asNumOrNull(raw.customer_id),
+    customer_mobile: asStr(raw.customer_mobile, 24) || null,
     session_id: sessionId,
     app_name: asStr(app.name, 64) || ctx.appName,
     app_version: asStr(app.version, 32),

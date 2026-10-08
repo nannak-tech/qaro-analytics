@@ -24,6 +24,7 @@ export interface EventRow {
   ts_client: string;   // ISO8601
   anonymous_id: string;
   customer_id: number | null;
+  customer_mobile: string | null;
   session_id: string;
   app_name: string;
   app_version: string;
@@ -45,7 +46,7 @@ export interface EventRow {
 
 const COLS = [
   'event_id', 'event_name', 'provenance', 'ts_server', 'ts_client',
-  'anonymous_id', 'customer_id', 'session_id', 'app_name', 'app_version',
+  'anonymous_id', 'customer_id', 'customer_mobile', 'session_id', 'app_name', 'app_version',
   'platform', 'device_model', 'os_version', 'locale', 'screen', 'lat', 'lng',
   'campaign_id', 'ad_id', 'placement', 'partner_id', 'geo_country', 'geo_city',
   'properties',
@@ -62,7 +63,7 @@ export async function insertEvents(rows: EventRow[]): Promise<void> {
     tuples.push('(' + COLS.map((_, j) => `$${base + j + 1}`).join(',') + ')');
     values.push(
       r.event_id, r.event_name, r.provenance, r.ts_server, r.ts_client,
-      r.anonymous_id, r.customer_id, r.session_id, r.app_name, r.app_version,
+      r.anonymous_id, r.customer_id, r.customer_mobile, r.session_id, r.app_name, r.app_version,
       r.platform, r.device_model, r.os_version, r.locale, r.screen, r.lat, r.lng,
       r.campaign_id, r.ad_id, r.placement, r.partner_id, r.geo_country, r.geo_city,
       JSON.stringify(r.properties),

@@ -17,9 +17,10 @@ CREATE TABLE IF NOT EXISTS events (
     ts_server    TIMESTAMPTZ NOT NULL DEFAULT now(),
     ts_client    TIMESTAMPTZ,
 
-    anonymous_id TEXT        NOT NULL,
-    customer_id  BIGINT,
-    session_id   TEXT        NOT NULL,
+    anonymous_id    TEXT        NOT NULL,
+    customer_id     BIGINT,
+    customer_mobile TEXT,                       -- logged-in user's mobile (identity)
+    session_id      TEXT        NOT NULL,
 
     app_name     TEXT,
     app_version  TEXT,
@@ -48,6 +49,8 @@ CREATE INDEX IF NOT EXISTS idx_events_name_ts   ON events (event_name, ts_server
 CREATE INDEX IF NOT EXISTS idx_events_ts_brin   ON events USING brin (ts_server);
 CREATE INDEX IF NOT EXISTS idx_events_session   ON events (session_id, ts_server);
 CREATE INDEX IF NOT EXISTS idx_events_customer  ON events (customer_id) WHERE customer_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_events_anon_ts   ON events (anonymous_id, ts_server DESC);
+CREATE INDEX IF NOT EXISTS idx_events_mobile    ON events (customer_mobile) WHERE customer_mobile IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_events_campaign  ON events (partner_id, campaign_id, ts_server) WHERE campaign_id <> '';
 CREATE INDEX IF NOT EXISTS idx_events_props_gin ON events USING gin (properties);
 

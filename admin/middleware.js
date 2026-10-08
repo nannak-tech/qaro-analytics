@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
 import { COOKIE, verifyToken } from './lib/jwt';
 
-// Admin-only sections. Partner users are scoped to their own partner and are
-// bounced to their partner page if they try to reach global/admin views.
-const ADMIN_ONLY_EXACT = new Set(['/', '/funnel', '/partners']);
-
 export async function middleware(req) {
   const { pathname } = req.nextUrl;
   const session = await verifyToken(req.cookies.get(COOKIE)?.value);
@@ -16,13 +12,16 @@ export async function middleware(req) {
     return NextResponse.redirect(url);
   }
 
-  // Partner (non-admin) scoping.
+  // Partner (non-admin) scoping: allowlist only their own partner pages, their
+  // campaigns, and ad metrics. Everything else (global analytics, users,
+  // pages, funnel, other partners) is admin-only.
   if (session.role !== 'qaro_admin') {
     const home = session.pid ? `/partners/${session.pid}` : '/ads';
-    const blocked =
-      ADMIN_ONLY_EXACT.has(pathname) ||
-      (pathname.startsWith('/partners/') && session.pid && !pathname.startsWith(`/partners/${session.pid}`));
-    if (blocked) {
+    const allowed =
+      pathname === '/ads' ||
+      pathname.startsWith('/campaigns/') ||
+      (session.pid && pathname.startsWith(`/partners/${session.pid}`));
+    if (!allowed) {
       const url = req.nextUrl.clone();
       url.pathname = home;
       url.search = '';

@@ -3,13 +3,16 @@ import { Funnel } from '@/components/Charts';
 
 export const dynamic = 'force-dynamic';
 
-const DEFAULT_STEPS = 'booking_started,slot_selected,payment_started,order_paid';
+// Steps can be a raw event, a page view (screen:<page>) or a CTA (cta:<label>),
+// so the journey funnel mirrors the Pages & CTAs events.
+const DEFAULT_STEPS = 'app_open,screen:home,screen:service_detail,booking_started,slot_selected,payment_started,order_paid';
 
-// Preset journeys worth tracking. Each must use known event_names.
 const PRESETS = [
-  { key: 'booking', label: 'Booking → paid', steps: DEFAULT_STEPS },
-  { key: 'discovery', label: 'Discovery → contact', steps: 'service_view,provider_view,call_click' },
-  { key: 'auth', label: 'Signup → verified', steps: 'signup,otp_requested,otp_verified' },
+  { key: 'full', label: 'Full journey', steps: DEFAULT_STEPS },
+  { key: 'booking', label: 'Booking → paid', steps: 'booking_started,slot_selected,payment_started,order_paid' },
+  { key: 'ondemand', label: 'Pick service → paid', steps: 'screen:roadside_landing,cta:select_service,screen:service_detail,booking_started,order_paid' },
+  { key: 'discovery', label: 'Browse → contact', steps: 'screen:home,screen:provider_detail,call_click' },
+  { key: 'auth', label: 'Login → verified', steps: 'screen:login,cta:send_otp,cta:verify_otp' },
 ];
 
 export default async function FunnelPage({ searchParams }) {

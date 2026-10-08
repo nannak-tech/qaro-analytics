@@ -28,3 +28,9 @@ export const getScreens = (days = 30) =>
 
 export const getInteractions = (days = 30) =>
   q(`/v1/metrics/interactions?days=${days}`);
+
+export const getUsers = (days = 30, search = '') =>
+  q(`/v1/users?days=${days}${search ? `&q=${encodeURIComponent(search)}` : ''}`);
+
+export const getUserActivity = (kind, uid, days = 90) =>
+  q(`/v1/users/activity?kind=${encodeURIComponent(kind)}&uid=${encodeURIComponent(uid)}&days=${days}`);

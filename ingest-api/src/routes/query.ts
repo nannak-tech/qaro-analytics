@@ -133,28 +133,125 @@ queryRouter.get('/v1/metrics/interactions', async (req, res) => {
   }
 });
 
+// ---- User activity: list users (logged-in by mobile, else anonymous) --------
+queryRouter.get('/v1/users', async (req, res) => {
+  const since = days(req.query.days, 30);
+  const q = String(req.query.q || '').trim();
+  const params: unknown[] = [since];
+  let filter = '';
+  if (q) {
+    params.push(`%${q}%`);
+    filter = `AND (customer_mobile ILIKE $${params.length} OR anonymous_id ILIKE $${params.length})`;
+  }
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+         CASE WHEN customer_id IS NOT NULL THEN 'customer' ELSE 'anon' END AS kind,
+         CASE WHEN customer_id IS NOT NULL THEN customer_id::text ELSE anonymous_id END AS uid,
+         max(customer_mobile)        AS mobile,
+         count(*)                    AS events,
+         count(DISTINCT session_id)  AS sessions,
+         min(ts_server)              AS first_seen,
+         max(ts_server)              AS last_seen
+       FROM events
+       WHERE ts_server >= now() - ($1 || ' days')::interval ${filter}
+       GROUP BY kind, uid
+       ORDER BY last_seen DESC
+       LIMIT 200`,
+      params,
+    );
+    res.json({ days: since, rows: rows.map((r) => ({
+      kind: r.kind, uid: r.uid, mobile: r.mobile || null,
+      events: num(r.events), sessions: num(r.sessions),
+      first_seen: r.first_seen, last_seen: r.last_seen,
+    })) });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message });
+  }
+});
+
+// ---- One user's activity timeline -------------------------------------------
+queryRouter.get('/v1/users/activity', async (req, res) => {
+  const since = days(req.query.days, 90);
+  const kind = String(req.query.kind || '');
+  const uid = String(req.query.uid || '').trim();
+  if (!uid) return res.status(400).json({ error: 'uid required' });
+  if (kind !== 'customer' && kind !== 'anon') return res.status(400).json({ error: 'kind must be customer|anon' });
+  if (kind === 'customer' && !/^\d+$/.test(uid)) return res.status(400).json({ error: 'bad customer uid' });
+  const cond = kind === 'customer' ? 'customer_id = $2::bigint' : 'anonymous_id = $2';
+  try {
+    const { rows } = await pool.query(
+      `SELECT event_name, screen, properties->>'cta' AS cta, properties->>'target' AS target,
+              session_id, ts_server, customer_mobile
+         FROM events
+        WHERE ${cond}
+          AND ts_server >= now() - ($1 || ' days')::interval
+        ORDER BY ts_server DESC
+        LIMIT 300`,
+      [since, uid],
+    );
+    const mobile = rows.find((r) => r.customer_mobile)?.customer_mobile || null;
+    res.json({ kind, uid, mobile, rows: rows.map((r) => ({
+      event_name: r.event_name, screen: r.screen, cta: r.cta, target: r.target,
+      session_id: r.session_id, ts: r.ts_server,
+    })) });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message });
+  }
+});
+
 // ---- Funnel / drop-off (ordered steps) --------------------------------------
-// GET /v1/funnel?steps=booking_started,slot_selected,payment_started,order_paid&days=30
+// A step is one of:
+//   <event_name>          e.g. booking_started   (a raw taxonomy event)
+//   screen:<page>         e.g. screen:service_detail  (a screen_view of that page)
+//   cta:<label>           e.g. cta:select_service     (a cta_click with that label)
+// so the journey funnel can be built from pages + CTAs + events, matching the
+// Pages & CTAs view. Values are validated (safe charset / taxonomy) then inlined.
+// GET /v1/funnel?steps=screen:home,screen:service_detail,booking_started,order_paid&days=30
+const SAFE_VALUE = /^[a-z0-9_]+$/i;
+interface Step { cond: string; label: string; ev: string }
+function parseFunnelStep(raw: string): Step | null {
+  const s = raw.trim();
+  const sep = s.indexOf(':');
+  if (sep === -1) {
+    if (!isEventName(s)) return null;
+    return { cond: `event_name = '${s}'`, label: s, ev: s };
+  }
+  const kind = s.slice(0, sep).toLowerCase();
+  const val = s.slice(sep + 1);
+  if (!SAFE_VALUE.test(val)) return null;
+  if (kind === 'screen') {
+    return { cond: `event_name = 'screen_view' AND screen = '${val}'`, label: `${val} (view)`, ev: 'screen_view' };
+  }
+  if (kind === 'cta') {
+    return { cond: `event_name = 'cta_click' AND properties->>'cta' = '${val}'`, label: `${val} (tap)`, ev: 'cta_click' };
+  }
+  return null;
+}
+
 queryRouter.get('/v1/funnel', async (req, res) => {
-  const steps = String(req.query.steps || '').split(',').map((s) => s.trim()).filter(Boolean);
-  if (steps.length < 2 || steps.length > 10) return res.status(400).json({ error: '2..10 steps' });
-  if (!steps.every(isEventName)) return res.status(400).json({ error: 'all steps must be known event_names' });
+  const raw = String(req.query.steps || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (raw.length < 2 || raw.length > 12) return res.status(400).json({ error: '2..12 steps' });
+  const steps = raw.map(parseFunnelStep);
+  if (steps.some((s) => s === null)) {
+    return res.status(400).json({ error: 'invalid step (use <event_name>, screen:<page>, or cta:<label>)' });
+  }
+  const parsed = steps as Step[];
   const since = days(req.query.days, 30);
 
-  // Step names are validated against the closed taxonomy → safe to inline.
   // Per session: first time each step occurred; count sessions where the step
   // happened at/after the previous step (ordered funnel).
-  const firsts = steps
-    .map((s, i) => `min(ts_server) FILTER (WHERE event_name = '${s}') AS t${i}`)
+  const firsts = parsed
+    .map((s, i) => `min(ts_server) FILTER (WHERE ${s.cond}) AS t${i}`)
     .join(',\n           ');
-  const reached = steps
+  const reached = parsed
     .map((_, i) => {
       const conds = [`t${i} IS NOT NULL`];
       for (let k = 1; k <= i; k++) conds.push(`t${k} >= t${k - 1}`);
       return `count(*) FILTER (WHERE ${conds.join(' AND ')}) AS r${i}`;
     })
     .join(',\n           ');
-  const names = steps.map((s) => `'${s}'`).join(',');
+  const evNames = [...new Set(parsed.map((s) => s.ev))].map((e) => `'${e}'`).join(',');
 
   try {
     const { rows } = await pool.query(
@@ -162,7 +259,7 @@ queryRouter.get('/v1/funnel', async (req, res) => {
          SELECT session_id,
            ${firsts}
          FROM events
-         WHERE event_name IN (${names})
+         WHERE event_name IN (${evNames})
            AND ts_server >= now() - interval '${since} days'
          GROUP BY session_id
        )
@@ -170,9 +267,9 @@ queryRouter.get('/v1/funnel', async (req, res) => {
     );
     const row = rows[0] || {};
     const base = num(row.r0); // sessions that entered the funnel (reached step 1)
-    const funnel = steps.map((name, i) => {
+    const funnel = parsed.map((s, i) => {
       const reachedN = num(row[`r${i}`]);
-      return { step: name, index: i, reached: reachedN,
+      return { step: s.label, spec: raw[i], index: i, reached: reachedN,
                pct: base ? Math.round((reachedN / base) * 1000) / 10 : 0 };
     });
     res.json({ days: since, entrants: base, funnel });
