@@ -37,7 +37,8 @@ export default function LoginPage() {
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 20 }}>
       <form onSubmit={submit} className="card" style={{ width: 340, padding: 26 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 18 }}>
-          <div style={{ width: 26, height: 26, borderRadius: 7, background: 'var(--brand)' }} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/qaro-logo.png" alt="QARO" width={26} height={26} style={{ borderRadius: 7, display: 'block' }} />
           <div style={{ fontWeight: 700 }}>QARO Analytics</div>
         </div>
         <label className="stat-label" htmlFor="email">Email</label>

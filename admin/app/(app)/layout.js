@@ -33,14 +33,15 @@ export default async function AppLayout({ children }) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 22 }}>
-          <div style={{ width: 26, height: 26, borderRadius: 7, background: 'var(--brand)' }} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/qaro-logo.png" alt="QARO" width={26} height={26} style={{ borderRadius: 7, display: 'block' }} />
           <div style={{ fontWeight: 700 }}>QARO Analytics</div>
         </div>
         <Nav links={links} />
         <div style={{ marginTop: 'auto' }}>
           <div className="muted" style={{ fontSize: 12, padding: '8px 12px', lineHeight: 1.5 }}>
             <div style={{ color: 'var(--text)' }}>{session.name || session.email}</div>
-            <div>{admin ? 'QARO admin' : (session.pname || 'Partner')}</div>
+            <div>{admin ? session.email : (session.pname || 'Partner')}</div>
           </div>
           <LogoutButton />
         </div>
