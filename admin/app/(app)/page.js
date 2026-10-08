@@ -1,5 +1,7 @@
 import { getEventCounts } from '@/lib/ingest';
 import { TimeSeries } from '@/components/Charts';
+import RangeControls from '@/components/RangeControls';
+import { parseRange, rangeLabel } from '@/lib/range';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,11 +16,11 @@ function Stat({ label, value }) {
 
 export default async function OverviewPage({ searchParams }) {
   const sp = await searchParams;
-  const days = Number(sp?.days) || 30;
+  const range = parseRange(sp);
 
   let data = null, error = null;
   try {
-    data = await getEventCounts(days);
+    data = await getEventCounts(range);
   } catch (e) {
     error = e.message;
   }
@@ -46,7 +48,13 @@ export default async function OverviewPage({ searchParams }) {
 
   return (
     <div>
-      <Header days={days} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 22 }}>Overview</h1>
+          <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>{rangeLabel(range)}</div>
+        </div>
+        <RangeControls />
+      </div>
 
       {error && (
         <div className="card" style={{ borderColor: 'var(--brand)', marginBottom: 20 }}>
@@ -92,25 +100,3 @@ export default async function OverviewPage({ searchParams }) {
   );
 }
 
-function Header({ days }) {
-  const ranges = [7, 30, 90];
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-      <div>
-        <h1 style={{ margin: 0, fontSize: 22 }}>Overview</h1>
-        <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>Last {days} days</div>
-      </div>
-      <div style={{ display: 'flex', gap: 6 }}>
-        {ranges.map((d) => (
-          <a key={d} href={`/?days=${d}`}
-             style={{
-               padding: '6px 12px', borderRadius: 8, fontSize: 13,
-               border: '1px solid var(--border)',
-               background: d === days ? 'var(--panel-2)' : 'transparent',
-               color: d === days ? 'var(--text)' : 'var(--muted)',
-             }}>{d}d</a>
-        ))}
-      </div>
-    </div>
-  );
-}

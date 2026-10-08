@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getUserActivity } from '@/lib/ingest';
 import { maskMobile } from '@/lib/mask';
+import { parseRange, rangeLabel } from '@/lib/range';
+import RangeControls from '@/components/RangeControls';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,11 +23,11 @@ function describe(e) {
 export default async function UserActivity({ params, searchParams }) {
   const { kind, uid } = await params;
   const sp = await searchParams;
-  const days = Number(sp?.days) || 90;
+  const range = parseRange(sp);
   if (kind !== 'customer' && kind !== 'anon') notFound();
 
   let data = null, error = null;
-  try { data = await getUserActivity(kind, decodeURIComponent(uid), days); }
+  try { data = await getUserActivity(kind, decodeURIComponent(uid), range); }
   catch (e) { error = e.message; }
 
   const rows = data?.rows ?? [];
@@ -34,17 +36,23 @@ export default async function UserActivity({ params, searchParams }) {
 
   return (
     <div>
-      <Link href="/users" className="muted" style={{ fontSize: 13 }}>← All users</Link>
-      <div style={{ margin: '6px 0 20px' }}>
-        <h1 style={{ display: 'inline-block', marginRight: 10 }}>{title}</h1>
-        {kind === 'customer'
-          ? <span className="badge active">logged-in</span>
-          : <span className="badge">anonymous</span>}
-        <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-          {kind === 'anon' && <span className="mono">{uid}</span>}
-          {kind === 'anon' ? ' · ' : ''}{rows.length} events · {sessions} sessions · last {days} days
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <Link href="/users" className="muted" style={{ fontSize: 13 }}>← All users</Link>
+          <div style={{ margin: '6px 0 0' }}>
+            <h1 style={{ display: 'inline-block', marginRight: 10 }}>{title}</h1>
+            {kind === 'customer'
+              ? <span className="badge active">logged-in</span>
+              : <span className="badge">anonymous</span>}
+            <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+              {kind === 'anon' && <span className="mono">{uid}</span>}
+              {kind === 'anon' ? ' · ' : ''}{rows.length} events · {sessions} sessions · {rangeLabel(range)}
+            </div>
+          </div>
         </div>
+        <RangeControls />
       </div>
+      <div style={{ height: 16 }} />
 
       {error && (
         <div className="card" style={{ borderColor: 'var(--brand)' }}>

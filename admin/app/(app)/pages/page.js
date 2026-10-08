@@ -1,4 +1,6 @@
 import { getScreens, getInteractions } from '@/lib/ingest';
+import RangeControls from '@/components/RangeControls';
+import { parseRange, rangeLabel } from '@/lib/range';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,12 +17,12 @@ const ACTION = {
 
 export default async function PagesView({ searchParams }) {
   const sp = await searchParams;
-  const days = Number(sp?.days) || 30;
+  const range = parseRange(sp);
 
   let screens = [], interactions = [], error = null;
   try {
     [{ rows: screens }, { rows: interactions }] = await Promise.all([
-      getScreens(days), getInteractions(days),
+      getScreens(range), getInteractions(range),
     ]);
   } catch (e) { error = e.message; }
 
@@ -28,21 +30,14 @@ export default async function PagesView({ searchParams }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1>Pages & interactions</h1>
           <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
-            Views per page and the CTAs / links / banners tapped on each · last {days} days
+            Views per page and the CTAs / links / banners tapped on each · {rangeLabel(range)}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {[7, 30, 90].map((d) => (
-            <a key={d} href={`/pages?days=${d}`}
-               style={{ padding: '6px 12px', borderRadius: 8, fontSize: 13, border: '1px solid var(--border)',
-                        background: d === days ? 'var(--panel-2)' : 'transparent',
-                        color: d === days ? 'var(--text)' : 'var(--muted)' }}>{d}d</a>
-          ))}
-        </div>
+        <RangeControls />
       </div>
 
       {error && (

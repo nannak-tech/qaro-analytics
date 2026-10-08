@@ -1,6 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { maskMobile } from '@/lib/mask';
+import { rangeQS } from '@/lib/range';
 
 const fmt = (d) => {
   try { return new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); }
@@ -9,9 +10,9 @@ const fmt = (d) => {
 const shortId = (s) => (s && s.length > 12 ? `${s.slice(0, 8)}…` : s);
 
 // A whole-row clickable user entry → opens that user's activity timeline.
-export default function UserRow({ user, days }) {
+export default function UserRow({ user, range }) {
   const router = useRouter();
-  const href = `/users/${user.kind}/${encodeURIComponent(user.uid)}?days=${Math.max(days, 90)}`;
+  const href = `/users/${user.kind}/${encodeURIComponent(user.uid)}?${rangeQS(range)}`;
   const isCustomer = user.kind === 'customer';
 
   return (

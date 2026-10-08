@@ -19,6 +19,23 @@ const days = (v: unknown, def: number) => {
 };
 const num = (v: unknown) => Number(v ?? 0);
 
+// Time window: either an explicit date range (from/to = YYYY-MM-DD, inclusive)
+// or a relative `days` lookback. Dates are regex-validated and safe to inline.
+// Returns a SQL condition on ts_server plus a label echoed back to the client.
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function timeCond(req: { query: any }, defDays: number): { cond: string; label: Record<string, unknown> } {
+  const from = String(req.query.from || '').trim();
+  const to = String(req.query.to || (DATE_RE.test(from) ? from : '')).trim();
+  if (DATE_RE.test(from) && DATE_RE.test(to)) {
+    return {
+      cond: `ts_server >= '${from}'::date AND ts_server < ('${to}'::date + interval '1 day')`,
+      label: { from, to },
+    };
+  }
+  const d = days(req.query.days, defDays);
+  return { cond: `ts_server >= now() - interval '${d} days'`, label: { days: d } };
+}
+
 export const queryRouter = Router();
 queryRouter.use('/v1/metrics', requireQueryKey);
 queryRouter.use('/v1/funnel', requireQueryKey);
@@ -27,7 +44,7 @@ queryRouter.use('/v1/funnel', requireQueryKey);
 queryRouter.get('/v1/metrics/ad', async (req, res) => {
   const partnerId = String(req.query.partner_id || '');
   if (!partnerId) return res.status(400).json({ error: 'partner_id required' });
-  const since = days(req.query.days, 30);
+  const t = timeCond(req, 30);
   try {
     const { rows } = await pool.query(
       `SELECT campaign_id,
@@ -36,17 +53,17 @@ queryRouter.get('/v1/metrics/ad', async (req, res) => {
          FROM events
         WHERE partner_id = $1
           AND event_name IN ('ad_impression','ad_click')
-          AND ts_server >= now() - ($2 || ' days')::interval
+          AND ${t.cond}
         GROUP BY campaign_id
         ORDER BY impressions DESC`,
-      [partnerId, since],
+      [partnerId],
     );
     const out = rows.map((r) => {
       const imp = num(r.impressions), clk = num(r.clicks);
       return { campaign_id: r.campaign_id, impressions: imp, clicks: clk,
                ctr: imp ? Math.round((clk / imp) * 1000) / 10 : 0 };
     });
-    res.json({ partner_id: partnerId, days: since, rows: out });
+    res.json({ partner_id: partnerId, ...t.label, rows: out });
   } catch (e: any) {
     res.status(500).json({ error: e?.message });
   }
@@ -54,7 +71,7 @@ queryRouter.get('/v1/metrics/ad', async (req, res) => {
 
 // ---- Daily event counts (top-line volumes) ----------------------------------
 queryRouter.get('/v1/metrics/events', async (req, res) => {
-  const since = days(req.query.days, 30);
+  const t = timeCond(req, 30);
   try {
     const { rows } = await pool.query(
       `SELECT date_trunc('day', ts_server)::date AS day,
@@ -63,12 +80,11 @@ queryRouter.get('/v1/metrics/events', async (req, res) => {
               count(distinct session_id) AS sessions,
               count(distinct customer_id) AS customers
          FROM events
-        WHERE ts_server >= now() - ($1 || ' days')::interval
+        WHERE ${t.cond}
         GROUP BY day, event_name
         ORDER BY day`,
-      [since],
     );
-    res.json({ days: since, rows: rows.map((r) => ({
+    res.json({ ...t.label, rows: rows.map((r) => ({
       day: r.day, event_name: r.event_name,
       events: num(r.events), sessions: num(r.sessions), customers: num(r.customers),
     })) });
@@ -79,7 +95,7 @@ queryRouter.get('/v1/metrics/events', async (req, res) => {
 
 // ---- Top pages (screen_view grouped by page name) ---------------------------
 queryRouter.get('/v1/metrics/screens', async (req, res) => {
-  const since = days(req.query.days, 30);
+  const t = timeCond(req, 30);
   try {
     // Top pages are derived ONLY from screen_view events (a real page view),
     // not from every event that happens to carry a screen context — otherwise
@@ -93,12 +109,11 @@ queryRouter.get('/v1/metrics/screens', async (req, res) => {
         WHERE event_name = 'screen_view'
           AND screen IS NOT NULL AND screen NOT IN ('', '/', 'unknown')
           AND screen NOT LIKE 'minified:%'
-          AND ts_server >= now() - ($1 || ' days')::interval
+          AND ${t.cond}
         GROUP BY screen
         ORDER BY views DESC`,
-      [since],
     );
-    res.json({ days: since, rows: rows.map((r) => ({
+    res.json({ ...t.label, rows: rows.map((r) => ({
       screen: r.screen, views: num(r.views),
       sessions: num(r.sessions), customers: num(r.customers),
     })) });
@@ -109,7 +124,7 @@ queryRouter.get('/v1/metrics/screens', async (req, res) => {
 
 // ---- Interactions by page (CTA / contact / banner / link clicks) ------------
 queryRouter.get('/v1/metrics/interactions', async (req, res) => {
-  const since = days(req.query.days, 30);
+  const t = timeCond(req, 30);
   try {
     const { rows } = await pool.query(
       `SELECT COALESCE(NULLIF(screen, ''), '(unknown)') AS screen,
@@ -120,12 +135,11 @@ queryRouter.get('/v1/metrics/interactions', async (req, res) => {
          FROM events
         WHERE event_name IN ('cta_click','link_click','call_click','whatsapp_click',
                              'directions_click','email_click','ad_click')
-          AND ts_server >= now() - ($1 || ' days')::interval
+          AND ${t.cond}
         GROUP BY 1, 2, 3
         ORDER BY clicks DESC`,
-      [since],
     );
-    res.json({ days: since, rows: rows.map((r) => ({
+    res.json({ ...t.label, rows: rows.map((r) => ({
       screen: r.screen, event_name: r.event_name, cta: r.cta, clicks: num(r.clicks),
     })) });
   } catch (e: any) {
@@ -135,9 +149,9 @@ queryRouter.get('/v1/metrics/interactions', async (req, res) => {
 
 // ---- User activity: list users (logged-in by mobile, else anonymous) --------
 queryRouter.get('/v1/users', async (req, res) => {
-  const since = days(req.query.days, 30);
+  const t = timeCond(req, 30);
   const q = String(req.query.q || '').trim();
-  const params: unknown[] = [since];
+  const params: unknown[] = [];
   let filter = '';
   if (q) {
     params.push(`%${q}%`);
@@ -154,13 +168,13 @@ queryRouter.get('/v1/users', async (req, res) => {
          min(ts_server)              AS first_seen,
          max(ts_server)              AS last_seen
        FROM events
-       WHERE ts_server >= now() - ($1 || ' days')::interval ${filter}
+       WHERE ${t.cond} ${filter}
        GROUP BY kind, uid
        ORDER BY last_seen DESC
        LIMIT 200`,
       params,
     );
-    res.json({ days: since, rows: rows.map((r) => ({
+    res.json({ ...t.label, rows: rows.map((r) => ({
       kind: r.kind, uid: r.uid, mobile: r.mobile || null,
       events: num(r.events), sessions: num(r.sessions),
       first_seen: r.first_seen, last_seen: r.last_seen,
@@ -170,25 +184,47 @@ queryRouter.get('/v1/users', async (req, res) => {
   }
 });
 
+// ---- Daily users trend (for the chart) --------------------------------------
+queryRouter.get('/v1/users/daily', async (req, res) => {
+  const t = timeCond(req, 30);
+  try {
+    const { rows } = await pool.query(
+      `SELECT date_trunc('day', ts_server)::date AS day,
+              count(DISTINCT anonymous_id) AS users,
+              count(DISTINCT customer_id)  AS logged_in,
+              count(DISTINCT session_id)   AS sessions
+         FROM events
+        WHERE ${t.cond}
+        GROUP BY day
+        ORDER BY day`,
+    );
+    res.json({ ...t.label, rows: rows.map((r) => ({
+      day: r.day, users: num(r.users), logged_in: num(r.logged_in), sessions: num(r.sessions),
+    })) });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message });
+  }
+});
+
 // ---- One user's activity timeline -------------------------------------------
 queryRouter.get('/v1/users/activity', async (req, res) => {
-  const since = days(req.query.days, 90);
+  const t = timeCond(req, 90);
   const kind = String(req.query.kind || '');
   const uid = String(req.query.uid || '').trim();
   if (!uid) return res.status(400).json({ error: 'uid required' });
   if (kind !== 'customer' && kind !== 'anon') return res.status(400).json({ error: 'kind must be customer|anon' });
   if (kind === 'customer' && !/^\d+$/.test(uid)) return res.status(400).json({ error: 'bad customer uid' });
-  const cond = kind === 'customer' ? 'customer_id = $2::bigint' : 'anonymous_id = $2';
+  const cond = kind === 'customer' ? 'customer_id = $1::bigint' : 'anonymous_id = $1';
   try {
     const { rows } = await pool.query(
       `SELECT event_name, screen, properties->>'cta' AS cta, properties->>'target' AS target,
               session_id, ts_server, customer_mobile
          FROM events
         WHERE ${cond}
-          AND ts_server >= now() - ($1 || ' days')::interval
+          AND ${t.cond}
         ORDER BY ts_server DESC
         LIMIT 300`,
-      [since, uid],
+      [uid],
     );
     const mobile = rows.find((r) => r.customer_mobile)?.customer_mobile || null;
     res.json({ kind, uid, mobile, rows: rows.map((r) => ({
@@ -237,7 +273,7 @@ queryRouter.get('/v1/funnel', async (req, res) => {
     return res.status(400).json({ error: 'invalid step (use <event_name>, screen:<page>, or cta:<label>)' });
   }
   const parsed = steps as Step[];
-  const since = days(req.query.days, 30);
+  const t = timeCond(req, 30);
 
   // Per session: first time each step occurred; count sessions where the step
   // happened at/after the previous step (ordered funnel).
@@ -260,7 +296,7 @@ queryRouter.get('/v1/funnel', async (req, res) => {
            ${firsts}
          FROM events
          WHERE event_name IN (${evNames})
-           AND ts_server >= now() - interval '${since} days'
+           AND ${t.cond}
          GROUP BY session_id
        )
        SELECT ${reached} FROM s`,
@@ -272,7 +308,7 @@ queryRouter.get('/v1/funnel', async (req, res) => {
       return { step: s.label, spec: raw[i], index: i, reached: reachedN,
                pct: base ? Math.round((reachedN / base) * 1000) / 10 : 0 };
     });
-    res.json({ days: since, entrants: base, funnel });
+    res.json({ ...t.label, entrants: base, funnel });
   } catch (e: any) {
     res.status(500).json({ error: e?.message });
   }

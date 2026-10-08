@@ -1,12 +1,14 @@
 import { getAdMetrics } from '@/lib/ingest';
 import { listPartners, getPartner } from '@/lib/controlplane';
 import { getSession, isAdmin } from '@/lib/session';
+import RangeControls from '@/components/RangeControls';
+import { parseRange, rangeLabel } from '@/lib/range';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdsPage({ searchParams }) {
   const sp = await searchParams;
-  const days = Number(sp?.days) || 30;
+  const range = parseRange(sp);
   const session = await getSession();
   const admin = isAdmin(session);
 
@@ -18,7 +20,7 @@ export default async function AdsPage({ searchParams }) {
 
   let data = null, error = null;
   if (partnerId) {
-    try { data = await getAdMetrics(partnerId, days); } catch (e) { error = e.message; }
+    try { data = await getAdMetrics(partnerId, range); } catch (e) { error = e.message; }
   }
 
   const rows = data?.rows ?? [];
@@ -28,11 +30,14 @@ export default async function AdsPage({ searchParams }) {
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <h1>Ad metrics</h1>
-        <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
-          Impressions, clicks & CTR per campaign{partner ? ` · ${partner.name}` : ''} · last {days} days
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h1>Ad metrics</h1>
+          <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
+            Impressions, clicks & CTR per campaign{partner ? ` · ${partner.name}` : ''} · {rangeLabel(range)}
+          </div>
         </div>
+        <RangeControls />
       </div>
 
       {admin && (
@@ -44,14 +49,10 @@ export default async function AdsPage({ searchParams }) {
               {partners.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
-          <div style={{ flex: '0 0 120px' }}>
-            <label className="stat-label label" htmlFor="days">Window</label>
-            <select id="days" name="days" className="sel" defaultValue={String(days)}>
-              <option value="7">7 days</option>
-              <option value="30">30 days</option>
-              <option value="90">90 days</option>
-            </select>
-          </div>
+          {range.from ? (<>
+            <input type="hidden" name="from" value={range.from} />
+            <input type="hidden" name="to" value={range.to} />
+          </>) : <input type="hidden" name="days" value={range.days} />}
           <button type="submit" className="btn">View</button>
         </form>
       )}
