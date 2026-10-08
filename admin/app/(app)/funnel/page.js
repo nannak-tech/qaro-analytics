@@ -8,12 +8,12 @@ export const dynamic = 'force-dynamic';
 // Steps can be a raw event, a page view (screen:<page>), any page matching a
 // substring (screenlike:<val>), or a CTA (cta:<label>) — so the journey funnel
 // mirrors the real app flow built from pages + CTAs + events.
-const DEFAULT_STEPS = 'app_open,screen:home,screenlike:listing,screen:provider_detail,booking_started,slot_selected,cta:map_location_selected,screen:checkout_garage,cta:place_order,screen:order_success_garage,order_paid';
+const DEFAULT_STEPS = 'app_open,screen:home,screenlike:listing,screen:provider_detail,booking_started,slot_selected,screen:my_locations,screen:checkout_garage,screen:add_card,cta:place_order,screen:order_success_garage,order_paid';
 
 const PRESETS = [
   { key: 'full', label: 'Full journey (garage)', steps: DEFAULT_STEPS },
-  { key: 'ondemand', label: 'On-demand', steps: 'app_open,screen:roadside_landing,cta:select_service,screen:service_detail,booking_started,screen:checkout_ondemand,cta:place_order,order_paid' },
-  { key: 'booking', label: 'Booking → paid', steps: 'booking_started,slot_selected,cta:place_order,payment_started,order_paid' },
+  { key: 'ondemand', label: 'On-demand', steps: 'app_open,screen:roadside_landing,cta:select_service,screen:service_detail,booking_started,screen:my_locations,screen:checkout_ondemand,cta:place_order,order_paid' },
+  { key: 'checkout', label: 'Checkout → paid', steps: 'screen:checkout_garage,screen:my_locations,screen:add_card,cta:card_saved,cta:place_order,order_paid' },
   { key: 'discovery', label: 'Browse → contact', steps: 'screen:home,screenlike:listing,screen:provider_detail,call_click' },
   { key: 'auth', label: 'Login → verified', steps: 'screen:login,cta:send_otp,cta:verify_otp' },
 ];
@@ -29,10 +29,13 @@ const STEP_LABELS = {
   'cta:select_service': 'Select service',
   'booking_started': 'Booking started',
   'slot_selected': 'Slot selected',
+  'screen:my_locations': 'Address screen',
   'cta:map_location_selected': 'Address selected (map)',
   'cta:address_label': 'Address added',
   'screen:checkout_garage': 'Payment / review',
   'screen:checkout_ondemand': 'Payment / review',
+  'screen:add_card': 'Add card',
+  'cta:card_saved': 'Card saved',
   'cta:place_order': 'Place order',
   'payment_started': 'Payment started',
   'screen:order_success_garage': 'Confirmation',
