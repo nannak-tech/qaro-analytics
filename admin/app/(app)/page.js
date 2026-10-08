@@ -18,9 +18,12 @@ export default async function OverviewPage({ searchParams }) {
   const sp = await searchParams;
   const range = parseRange(sp);
 
-  let data = null, daily = [], error = null;
+  let data = null, daily = [], total = {}, error = null;
   try {
-    [data, { rows: daily }] = await Promise.all([getEventCounts(range), getDaily(range)]);
+    const [counts, dailyRes] = await Promise.all([getEventCounts(range), getDaily(range)]);
+    data = counts;
+    daily = dailyRes?.rows ?? [];
+    total = dailyRes?.total ?? {};
   } catch (e) {
     error = e.message;
   }
@@ -63,10 +66,11 @@ export default async function OverviewPage({ searchParams }) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 20 }}>
+        <Stat label="Users" value={(total.users ?? 0).toLocaleString()} />
+        <Stat label="Logged-in" value={(total.logged_in ?? 0).toLocaleString()} />
+        <Stat label="Sessions" value={(total.sessions ?? 0).toLocaleString()} />
         <Stat label="Total events" value={totalEvents.toLocaleString()} />
-        <Stat label="Event types" value={events.length} />
-        <Stat label="Days with data" value={series.length} />
         <Stat label="Busiest day" value={busiest ? busiest.value.toLocaleString() : '—'} />
       </div>
 

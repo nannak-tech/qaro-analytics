@@ -112,10 +112,22 @@ queryRouter.get('/v1/metrics/daily', async (req, res) => {
         GROUP BY day
         ORDER BY day`,
     );
-    res.json({ ...t.label, rows: rows.map((r) => ({
-      day: r.day, events: num(r.events), sessions: num(r.sessions), users: num(r.users),
-      views: num(r.views), interactions: num(r.interactions),
-    })) });
+    // Range totals (distinct over the whole range, not summable from per-day).
+    const { rows: tot } = await pool.query(
+      `SELECT count(*) AS events,
+              count(DISTINCT anonymous_id) AS users,
+              count(DISTINCT customer_id)  AS logged_in,
+              count(DISTINCT session_id)   AS sessions
+         FROM events WHERE ${t.cond}`,
+    );
+    const total = tot[0] || {};
+    res.json({ ...t.label,
+      total: { events: num(total.events), users: num(total.users),
+               logged_in: num(total.logged_in), sessions: num(total.sessions) },
+      rows: rows.map((r) => ({
+        day: r.day, events: num(r.events), sessions: num(r.sessions), users: num(r.users),
+        views: num(r.views), interactions: num(r.interactions),
+      })) });
   } catch (e: any) {
     res.status(500).json({ error: e?.message });
   }
