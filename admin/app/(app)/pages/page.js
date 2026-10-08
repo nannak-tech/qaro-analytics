@@ -1,4 +1,5 @@
-import { getScreens, getInteractions } from '@/lib/ingest';
+import { getScreens, getInteractions, getDaily } from '@/lib/ingest';
+import { DailyTrend } from '@/components/Charts';
 import RangeControls from '@/components/RangeControls';
 import { parseRange, rangeLabel } from '@/lib/range';
 
@@ -19,10 +20,10 @@ export default async function PagesView({ searchParams }) {
   const sp = await searchParams;
   const range = parseRange(sp);
 
-  let screens = [], interactions = [], error = null;
+  let screens = [], interactions = [], daily = [], error = null;
   try {
-    [{ rows: screens }, { rows: interactions }] = await Promise.all([
-      getScreens(range), getInteractions(range),
+    [{ rows: screens }, { rows: interactions }, { rows: daily }] = await Promise.all([
+      getScreens(range), getInteractions(range), getDaily(range),
     ]);
   } catch (e) { error = e.message; }
 
@@ -45,6 +46,14 @@ export default async function PagesView({ searchParams }) {
           <b>Can’t load page metrics.</b><div className="muted" style={{ marginTop: 6 }}>{error}</div>
         </div>
       )}
+
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div style={{ fontWeight: 600, marginBottom: 10 }}>Daily trend</div>
+        <DailyTrend data={daily} lines={[
+          { key: 'views', name: 'Page views', color: 'var(--brand)' },
+          { key: 'interactions', name: 'Interactions', color: 'var(--brand-2)' },
+        ]} />
+      </div>
 
       <div className="card" style={{ marginBottom: 20 }}>
         <div style={{ fontWeight: 600, marginBottom: 6 }}>Top pages</div>

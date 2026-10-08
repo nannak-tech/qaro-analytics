@@ -1,5 +1,5 @@
-import { getEventCounts } from '@/lib/ingest';
-import { TimeSeries } from '@/components/Charts';
+import { getEventCounts, getDaily } from '@/lib/ingest';
+import { DailyTrend } from '@/components/Charts';
 import RangeControls from '@/components/RangeControls';
 import { parseRange, rangeLabel } from '@/lib/range';
 
@@ -18,9 +18,9 @@ export default async function OverviewPage({ searchParams }) {
   const sp = await searchParams;
   const range = parseRange(sp);
 
-  let data = null, error = null;
+  let data = null, daily = [], error = null;
   try {
-    data = await getEventCounts(range);
+    [data, { rows: daily }] = await Promise.all([getEventCounts(range), getDaily(range)]);
   } catch (e) {
     error = e.message;
   }
@@ -71,8 +71,12 @@ export default async function OverviewPage({ searchParams }) {
       </div>
 
       <div className="card" style={{ marginBottom: 20 }}>
-        <div style={{ marginBottom: 10, fontWeight: 600 }}>Event volume</div>
-        <TimeSeries data={series} />
+        <div style={{ marginBottom: 10, fontWeight: 600 }}>Daily trend</div>
+        <DailyTrend data={daily} lines={[
+          { key: 'events', name: 'Events', color: 'var(--brand)' },
+          { key: 'users', name: 'Users', color: 'var(--brand-2)' },
+          { key: 'sessions', name: 'Sessions', color: 'var(--accent)' },
+        ]} />
       </div>
 
       <div className="card">

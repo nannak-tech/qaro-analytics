@@ -25,6 +25,9 @@ export const getFunnel = (steps, range) =>
 export const getAdMetrics = (partnerId, range) =>
   q(`/v1/metrics/ad?partner_id=${encodeURIComponent(partnerId)}&${rangeQS(range)}`);
 
+export const getDaily = (range) =>
+  q(`/v1/metrics/daily?${rangeQS(range)}`);
+
 export const getScreens = (range) =>
   q(`/v1/metrics/screens?${rangeQS(range)}`);
 

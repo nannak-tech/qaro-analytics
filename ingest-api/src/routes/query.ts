@@ -93,6 +93,34 @@ queryRouter.get('/v1/metrics/events', async (req, res) => {
   }
 });
 
+// ---- Daily trend: events / users / sessions / views / interactions ----------
+queryRouter.get('/v1/metrics/daily', async (req, res) => {
+  const t = timeCond(req, 30);
+  try {
+    const { rows } = await pool.query(
+      `SELECT date_trunc('day', ts_server)::date AS day,
+              count(*)                     AS events,
+              count(DISTINCT session_id)   AS sessions,
+              count(DISTINCT anonymous_id) AS users,
+              count(*) FILTER (WHERE event_name = 'screen_view'
+                               AND screen NOT IN ('', '/', 'unknown')
+                               AND screen NOT LIKE 'minified:%') AS views,
+              count(*) FILTER (WHERE event_name IN ('cta_click','link_click','call_click',
+                               'whatsapp_click','directions_click','email_click','ad_click')) AS interactions
+         FROM events
+        WHERE ${t.cond}
+        GROUP BY day
+        ORDER BY day`,
+    );
+    res.json({ ...t.label, rows: rows.map((r) => ({
+      day: r.day, events: num(r.events), sessions: num(r.sessions), users: num(r.users),
+      views: num(r.views), interactions: num(r.interactions),
+    })) });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message });
+  }
+});
+
 // ---- Top pages (screen_view grouped by page name) ---------------------------
 queryRouter.get('/v1/metrics/screens', async (req, res) => {
   const t = timeCond(req, 30);

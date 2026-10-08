@@ -39,6 +39,30 @@ export function TimeSeries({ data, color = 'var(--brand)', label = 'events' }) {
   );
 }
 
+/** Generic daily multi-line trend. lines = [{ key, name, color }]. */
+export function DailyTrend({ data, lines }) {
+  if (!data?.length) {
+    return <div className="muted" style={{ padding: 40, textAlign: 'center' }}>No data in this range</div>;
+  }
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <LineChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+        <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+        <XAxis dataKey="day" tickFormatter={fmtDay} tick={{ fill: 'var(--muted)', fontSize: 12 }} stroke="var(--border)" />
+        <YAxis tick={{ fill: 'var(--muted)', fontSize: 12 }} stroke="var(--border)" allowDecimals={false} />
+        <Tooltip
+          contentStyle={{ background: 'var(--panel-2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)' }}
+          labelFormatter={fmtDay} />
+        <Legend wrapperStyle={{ fontSize: 12 }} />
+        {lines.map((l) => (
+          <Line key={l.key} type="monotone" dataKey={l.key} name={l.name}
+                stroke={l.color} strokeWidth={2} dot={false} isAnimationActive={false} />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
 /** Daily users trend: data = [{ day, users, logged_in, sessions }]. */
 export function UsersTrend({ data }) {
   if (!data?.length) {
