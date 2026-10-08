@@ -26,6 +26,8 @@ class QaroTracker with WidgetsBindingObserver {
   String? _customerMobile;
   String Function()? _authToken;
   String? _currentScreen;
+  String? _estId;
+  String? _estName;
 
   final List<Map<String, dynamic>> _pending = [];
   Timer? _timer;
@@ -80,6 +82,18 @@ class QaroTracker with WidgetsBindingObserver {
   /// Set by the route observer; used as the default `screen` on events.
   void setCurrentScreen(String? screen) => _currentScreen = screen;
 
+  /// Establishment (partner/garage) context: while set, every event is stamped
+  /// with establishment_id/name so the dashboard can attribute page visits and
+  /// activities to a specific establishment. Call on entering an establishment
+  /// screen; call setEstablishment(null) on leaving.
+  void setEstablishment(dynamic id, {String? name}) {
+    if (id == null || '$id'.isEmpty) {
+      _estId = null; _estName = null;
+    } else {
+      _estId = '$id'; _estName = name;
+    }
+  }
+
   /// Track an event. [name] must be in the taxonomy (see docs/EVENT_SCHEMA.md).
   void track(
     String name, {
@@ -92,9 +106,16 @@ class QaroTracker with WidgetsBindingObserver {
     // (a tapped button, a placed order). Worst case the event is dropped.
     try {
       final (sid, _) = _session.touch();
+      final props = _estId == null
+          ? properties
+          : {
+              ...properties,
+              'establishment_id': _estId,
+              if (_estName != null && _estName!.isNotEmpty) 'establishment_name': _estName,
+            };
       final envelope = QaroEvent(
         name: name,
-        properties: properties,
+        properties: props,
         ad: ad,
         screen: screen ?? _currentScreen,
       ).toEnvelope(

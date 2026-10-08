@@ -16,6 +16,13 @@ class QaroEvents {
         properties: {'screen_name': name, if (referrer != null) 'referrer_screen': referrer});
   }
 
+  /// Set the current establishment (partner/garage) context so every following
+  /// event is attributed to it. Call on entering an establishment screen and
+  /// clearEstablishment() on leaving.
+  static void setEstablishment(dynamic id, {String? name}) =>
+      _t.setEstablishment(id, name: name);
+  static void clearEstablishment() => _t.setEstablishment(null);
+
   /// A button / call-to-action tap. `cta` is a short label (e.g. 'book_now').
   /// The page is taken from the current screen unless `screen` is given.
   static void cta(String cta, {String? screen, dynamic target}) =>
