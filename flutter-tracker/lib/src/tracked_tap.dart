@@ -53,6 +53,17 @@ class QaroEvents {
   static void directionsClick({dynamic providerId}) =>
       _t.track('directions_click', properties: {if (providerId != null) 'provider_id': providerId});
 
+  // --- Account ---
+  static void login({dynamic customerId, String? mobile}) =>
+      _t.track('login', properties: {
+        if (customerId != null) 'customer_id': customerId,
+        if (mobile != null && mobile.isNotEmpty) 'mobile': mobile,
+      });
+  static void signup({dynamic customerId}) =>
+      _t.track('signup', properties: {if (customerId != null) 'customer_id': customerId});
+  static void otpRequested() => _t.track('otp_requested');
+  static void otpVerified() => _t.track('otp_verified');
+
   // --- Booking funnel ---
   static void bookingStarted(dynamic serviceId) =>
       _t.track('booking_started', properties: {'service_id': serviceId});
