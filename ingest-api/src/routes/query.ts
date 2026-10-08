@@ -91,7 +91,8 @@ queryRouter.get('/v1/metrics/screens', async (req, res) => {
               count(DISTINCT customer_id)  AS customers
          FROM events
         WHERE event_name = 'screen_view'
-          AND screen IS NOT NULL AND screen <> ''
+          AND screen IS NOT NULL AND screen NOT IN ('', '/', 'unknown')
+          AND screen NOT LIKE 'minified:%'
           AND ts_server >= now() - ($1 || ' days')::interval
         GROUP BY screen
         ORDER BY views DESC`,

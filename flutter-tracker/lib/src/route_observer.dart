@@ -10,7 +10,9 @@ import 'event_tracker.dart';
 class QaroRouteObserver extends NavigatorObserver {
   String? _namedOrNull(Route<dynamic>? route) {
     final s = route?.settings.name;
-    return (s != null && s.isNotEmpty) ? s : null;
+    // Treat the framework root route "/" as anonymous — the real landing page
+    // is recorded explicitly via QaroEvents.screen('home').
+    return (s != null && s.isNotEmpty && s != '/') ? s : null;
   }
 
   void _view(Route<dynamic> route, Route<dynamic>? previous) {
