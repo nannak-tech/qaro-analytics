@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getUserActivity } from '@/lib/ingest';
+import { maskMobile } from '@/lib/mask';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,7 @@ export default async function UserActivity({ params, searchParams }) {
   catch (e) { error = e.message; }
 
   const rows = data?.rows ?? [];
-  const title = kind === 'customer' ? (data?.mobile || `customer #${uid}`) : uid;
+  const title = kind === 'customer' ? (maskMobile(data?.mobile) || `customer #${uid}`) : uid;
   const sessions = new Set(rows.map((r) => r.session_id)).size;
 
   return (

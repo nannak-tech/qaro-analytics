@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getUsers } from '@/lib/ingest';
+import { maskMobile } from '@/lib/mask';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,7 +76,7 @@ export default async function UsersPage({ searchParams }) {
                   <td>
                     <Link href={`/users/${r.kind}/${encodeURIComponent(r.uid)}?days=${Math.max(days, 90)}`}
                           style={{ color: 'var(--text)', fontWeight: 600 }}>
-                      {r.kind === 'customer' ? (r.mobile || `customer #${r.uid}`) : <span className="mono">{shortId(r.uid)}</span>}
+                      {r.kind === 'customer' ? (maskMobile(r.mobile) || `customer #${r.uid}`) : <span className="mono">{shortId(r.uid)}</span>}
                     </Link>
                   </td>
                   <td>{r.kind === 'customer'
