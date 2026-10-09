@@ -1,5 +1,6 @@
 'use client';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
+import { todayStr } from '@/lib/range';
 
 const btn = (active) => ({
   padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer',
@@ -17,8 +18,9 @@ export default function RangeControls() {
 
   const from = sp.get('from');
   const to = sp.get('to');
-  const days = Number(sp.get('days')) || (from ? null : 30);
-  const today = new Date().toISOString().slice(0, 10);
+  const daysParam = sp.get('days');
+  const days = daysParam ? Number(daysParam) : null;
+  const today = todayStr();
 
   const go = (params) => {
     const next = new URLSearchParams(sp.toString());
@@ -27,7 +29,9 @@ export default function RangeControls() {
     router.push(`${path}?${next.toString()}`);
   };
 
-  const isToday = from && from === to && from === today;
+  // No range in the URL = default = Today, so Today shows active on first load.
+  const isDefault = !from && !daysParam;
+  const isToday = isDefault || (from && from === to && from === today);
   const pickFrom = (v) => go({ from: v, to: to && to >= v ? to : v });
   const pickTo = (v) => go({ from: from || v, to: v });
 
