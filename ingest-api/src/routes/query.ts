@@ -164,6 +164,42 @@ queryRouter.get('/v1/metrics/daily', async (req, res) => {
   }
 });
 
+// ---- Platform / device split (user + session level) -------------------------
+// Native apps carry platform=android|ios. Web carries platform=web plus the
+// host OS in os_version (iOS/Android/Windows/macOS/Linux — set by the app from
+// the browser), so web splits into mobile-web vs desktop by OS.
+queryRouter.get('/v1/metrics/platforms', async (req, res) => {
+  const t = timeCond(req, 30);
+  try {
+    const { rows } = await pool.query(
+      `SELECT CASE
+                WHEN platform = 'android' THEN 'Android (app)'
+                WHEN platform = 'ios' THEN 'iOS (app)'
+                WHEN platform = 'web' AND os_version = 'iOS' THEN 'Web app - iOS'
+                WHEN platform = 'web' AND os_version = 'Android' THEN 'Web app - Android'
+                WHEN platform = 'web' AND os_version = 'Windows' THEN 'Desktop - Windows'
+                WHEN platform = 'web' AND os_version = 'macOS' THEN 'Desktop - macOS'
+                WHEN platform = 'web' AND os_version = 'Linux' THEN 'Web - Linux'
+                WHEN platform = 'web' THEN 'Web - other'
+                ELSE 'Unknown'
+              END AS bucket,
+              count(DISTINCT anonymous_id) AS users,
+              count(DISTINCT customer_id)  AS logged_in,
+              count(DISTINCT session_id)   AS sessions,
+              count(*)                     AS events
+         FROM events WHERE ${t.cond}
+        GROUP BY bucket
+        ORDER BY sessions DESC, events DESC`,
+    );
+    res.json({ ...t.label, rows: rows.map((r) => ({
+      bucket: r.bucket, users: num(r.users), logged_in: num(r.logged_in),
+      sessions: num(r.sessions), events: num(r.events),
+    })) });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message });
+  }
+});
+
 // ---- Top pages (screen_view grouped by page name) ---------------------------
 queryRouter.get('/v1/metrics/screens', async (req, res) => {
   const t = timeCond(req, 30);

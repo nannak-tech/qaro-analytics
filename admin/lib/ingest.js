@@ -31,6 +31,9 @@ export const getDaily = (range) =>
 export const getScreens = (range) =>
   q(`/v1/metrics/screens?${rangeQS(range)}`);
 
+export const getPlatforms = (range) =>
+  q(`/v1/metrics/platforms?${rangeQS(range)}`);
+
 export const getInteractions = (range) =>
   q(`/v1/metrics/interactions?${rangeQS(range)}`);
 
