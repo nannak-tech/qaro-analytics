@@ -18,16 +18,19 @@ export default async function OverviewPage({ searchParams }) {
   const sp = await searchParams;
   const range = parseRange(sp);
 
-  let data = null, daily = [], total = {}, gran = 'day', error = null;
+  let data = null, daily = [], total = {}, gran = 'day', busiestHour = null, error = null;
   try {
     const [counts, dailyRes] = await Promise.all([getEventCounts(range), getDaily(range)]);
     data = counts;
     daily = dailyRes?.rows ?? [];
     total = dailyRes?.total ?? {};
     gran = dailyRes?.gran ?? 'day';
+    busiestHour = dailyRes?.busiest_hour ?? null;
   } catch (e) {
     error = e.message;
   }
+
+  const hh = (h) => `${String(h).padStart(2, '0')}:00`;
 
   const rows = data?.rows ?? [];
 
@@ -67,12 +70,13 @@ export default async function OverviewPage({ searchParams }) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14, marginBottom: 20 }}>
         <Stat label="Users" value={(total.users ?? 0).toLocaleString()} />
         <Stat label="Logged-in" value={(total.logged_in ?? 0).toLocaleString()} />
         <Stat label="Sessions" value={(total.sessions ?? 0).toLocaleString()} />
         <Stat label="Total events" value={totalEvents.toLocaleString()} />
         <Stat label="Busiest day" value={busiest ? busiest.value.toLocaleString() : '—'} />
+        <Stat label="Busiest hour" value={busiestHour ? hh(busiestHour.hour) : '—'} />
       </div>
 
       <div className="card" style={{ marginBottom: 20 }}>

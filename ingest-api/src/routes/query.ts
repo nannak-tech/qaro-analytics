@@ -144,8 +144,15 @@ queryRouter.get('/v1/metrics/daily', async (req, res) => {
               count(DISTINCT session_id)   AS sessions
          FROM events WHERE ${t.cond}`,
     );
+    // Busiest hour-of-day across the whole range (UAE local time).
+    const { rows: bh } = await pool.query(
+      `SELECT extract(hour FROM ts_server AT TIME ZONE '${TZ}')::int AS hour, count(*) AS events
+         FROM events WHERE ${t.cond}
+        GROUP BY hour ORDER BY events DESC, hour LIMIT 1`,
+    );
+    const busiest_hour = bh[0] ? { hour: num(bh[0].hour), events: num(bh[0].events) } : null;
     const total = tot[0] || {};
-    res.json({ ...t.label, gran: t.gran,
+    res.json({ ...t.label, gran: t.gran, busiest_hour,
       total: { events: num(total.events), users: num(total.users),
                logged_in: num(total.logged_in), sessions: num(total.sessions) },
       rows: rows.map((r) => ({
