@@ -1,9 +1,18 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 
 export default function Nav({ links }) {
   const path = usePathname();
+  const sp = useSearchParams();
+  // Carry the active date range across pages so "Today"/7d/etc. sticks when
+  // navigating. Only the range keys — not page-specific ones like q/est.
+  const rq = new URLSearchParams();
+  for (const k of ['from', 'to', 'days']) {
+    const v = sp.get(k);
+    if (v) rq.set(k, v);
+  }
+  const qs = rq.toString();
   return (
     <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {links.map((l) => {
@@ -11,7 +20,7 @@ export default function Nav({ links }) {
         return (
           <Link
             key={l.href}
-            href={l.href}
+            href={qs ? `${l.href}?${qs}` : l.href}
             style={{
               padding: '9px 12px',
               borderRadius: 9,
