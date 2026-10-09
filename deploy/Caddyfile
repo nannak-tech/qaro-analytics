@@ -1,13 +1,25 @@
-# Auto-HTTPS reverse proxy for the ingest API.
-# Caddy fetches + renews a Let's Encrypt cert automatically, as soon as
-# analytics.qaro.ae resolves to this box and ports 80/443 are open.
-# Using a different domain? Change it here.
+# Auto-HTTPS reverse proxy. Caddy fetches + renews Let's Encrypt certs
+# automatically once the domains resolve to this box and 80/443 are open.
 
+# analytics.qaro.ae serves BOTH:
+#   - the ingest API under /v1/* (event POSTs from the app, internal queries,
+#     auth/control) and /health — must stay on the ingest service, or the app
+#     can no longer send analytics;
+#   - the dashboard UI for every other path (it is the application URL).
 analytics.qaro.ae {
-    reverse_proxy ingest-api:4100
+    handle /v1/* {
+        reverse_proxy ingest-api:4100
+    }
+    handle /health {
+        reverse_proxy ingest-api:4100
+    }
+    handle {
+        reverse_proxy admin:3100
+    }
 }
 
-# Admin dashboard (customer-journey + ads). Password-gated in the app itself.
+# Admin dashboard — kept working so existing links/logins don't break.
+# Password-gated in the app itself.
 admin.qaro.ae {
     reverse_proxy admin:3100
 }
