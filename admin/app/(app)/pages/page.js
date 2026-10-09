@@ -20,11 +20,13 @@ export default async function PagesView({ searchParams }) {
   const sp = await searchParams;
   const range = parseRange(sp);
 
-  let screens = [], interactions = [], daily = [], error = null;
+  let screens = [], interactions = [], daily = [], gran = 'day', error = null;
   try {
-    [{ rows: screens }, { rows: interactions }, { rows: daily }] = await Promise.all([
+    const [sc, it, dailyRes] = await Promise.all([
       getScreens(range), getInteractions(range), getDaily(range),
     ]);
+    screens = sc.rows; interactions = it.rows;
+    daily = dailyRes?.rows ?? []; gran = dailyRes?.gran ?? 'day';
   } catch (e) { error = e.message; }
 
   const totalViews = screens.reduce((a, r) => a + r.views, 0);
@@ -48,8 +50,8 @@ export default async function PagesView({ searchParams }) {
       )}
 
       <div className="card" style={{ marginBottom: 20 }}>
-        <div style={{ fontWeight: 600, marginBottom: 10 }}>Daily trend</div>
-        <DailyTrend data={daily} lines={[
+        <div style={{ fontWeight: 600, marginBottom: 10 }}>{gran === 'hour' ? 'Hourly trend' : 'Daily trend'}</div>
+        <DailyTrend data={daily} gran={gran} lines={[
           { key: 'views', name: 'Page views', color: 'var(--brand)' },
           { key: 'interactions', name: 'Interactions', color: 'var(--brand-2)' },
         ]} />

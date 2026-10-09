@@ -18,12 +18,13 @@ export default async function OverviewPage({ searchParams }) {
   const sp = await searchParams;
   const range = parseRange(sp);
 
-  let data = null, daily = [], total = {}, error = null;
+  let data = null, daily = [], total = {}, gran = 'day', error = null;
   try {
     const [counts, dailyRes] = await Promise.all([getEventCounts(range), getDaily(range)]);
     data = counts;
     daily = dailyRes?.rows ?? [];
     total = dailyRes?.total ?? {};
+    gran = dailyRes?.gran ?? 'day';
   } catch (e) {
     error = e.message;
   }
@@ -75,8 +76,8 @@ export default async function OverviewPage({ searchParams }) {
       </div>
 
       <div className="card" style={{ marginBottom: 20 }}>
-        <div style={{ marginBottom: 10, fontWeight: 600 }}>Daily trend</div>
-        <DailyTrend data={daily} lines={[
+        <div style={{ marginBottom: 10, fontWeight: 600 }}>{gran === 'hour' ? 'Hourly trend' : 'Daily trend'}</div>
+        <DailyTrend data={daily} gran={gran} lines={[
           { key: 'events', name: 'Events', color: 'var(--brand)' },
           { key: 'users', name: 'Users', color: 'var(--brand-2)' },
           { key: 'sessions', name: 'Sessions', color: 'var(--accent)' },

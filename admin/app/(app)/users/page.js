@@ -11,12 +11,14 @@ export default async function UsersPage({ searchParams }) {
   const range = parseRange(sp);
   const search = sp?.q || '';
 
-  let rows = [], daily = [], error = null;
+  let rows = [], daily = [], gran = 'day', error = null;
   try {
-    [{ rows }, { rows: daily }] = await Promise.all([
+    const [usersRes, dailyRes] = await Promise.all([
       getUsers(range, search),
       getUsersDaily(range),
     ]);
+    rows = usersRes.rows;
+    daily = dailyRes?.rows ?? []; gran = dailyRes?.gran ?? 'day';
   } catch (e) { error = e.message; }
 
   const customers = rows.filter((r) => r.kind === 'customer').length;
@@ -41,8 +43,8 @@ export default async function UsersPage({ searchParams }) {
       </div>
 
       <div className="card" style={{ marginBottom: 20 }}>
-        <div style={{ fontWeight: 600, marginBottom: 10 }}>Daily users trend</div>
-        <UsersTrend data={daily} />
+        <div style={{ fontWeight: 600, marginBottom: 10 }}>{gran === 'hour' ? 'Hourly users trend' : 'Daily users trend'}</div>
+        <UsersTrend data={daily} gran={gran} />
       </div>
 
       <form method="GET" style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>

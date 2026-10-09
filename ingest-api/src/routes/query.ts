@@ -23,17 +23,41 @@ const num = (v: unknown) => Number(v ?? 0);
 // or a relative `days` lookback. Dates are regex-validated and safe to inline.
 // Returns a SQL condition on ts_server plus a label echoed back to the client.
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-function timeCond(req: { query: any }, defDays: number): { cond: string; label: Record<string, unknown> } {
+// Market timezone: a "single day" means that calendar day in UAE local time,
+// and single-day ranges are bucketed by local hour so Today shows an hourly trend.
+const TZ = 'Asia/Dubai';
+function timeCond(
+  req: { query: any },
+  defDays: number,
+): { cond: string; label: Record<string, unknown>; gran: 'hour' | 'day' } {
   const from = String(req.query.from || '').trim();
   const to = String(req.query.to || (DATE_RE.test(from) ? from : '')).trim();
   if (DATE_RE.test(from) && DATE_RE.test(to)) {
+    if (from === to) {
+      // One calendar day in local time → hourly granularity.
+      return {
+        cond: `ts_server >= ('${from}'::timestamp AT TIME ZONE '${TZ}') AND ts_server < (('${from}'::timestamp + interval '1 day') AT TIME ZONE '${TZ}')`,
+        label: { from, to },
+        gran: 'hour',
+      };
+    }
     return {
       cond: `ts_server >= '${from}'::date AND ts_server < ('${to}'::date + interval '1 day')`,
       label: { from, to },
+      gran: 'day',
     };
   }
   const d = days(req.query.days, defDays);
-  return { cond: `ts_server >= now() - interval '${d} days'`, label: { days: d } };
+  return { cond: `ts_server >= now() - interval '${d} days'`, label: { days: d }, gran: d <= 1 ? 'hour' : 'day' };
+}
+
+// Bucket expression + output key for the daily/trend endpoints, per granularity.
+// Hourly buckets are formatted as a tz-stable string ("YYYY-MM-DDTHH:00") in
+// local time so the browser renders the hour without re-applying a timezone.
+function bucketExpr(gran: 'hour' | 'day'): string {
+  return gran === 'hour'
+    ? `to_char(date_trunc('hour', ts_server AT TIME ZONE '${TZ}'), 'YYYY-MM-DD"T"HH24:00')`
+    : `date_trunc('day', ts_server)::date`;
 }
 
 export const queryRouter = Router();
@@ -98,7 +122,7 @@ queryRouter.get('/v1/metrics/daily', async (req, res) => {
   const t = timeCond(req, 30);
   try {
     const { rows } = await pool.query(
-      `SELECT date_trunc('day', ts_server)::date AS day,
+      `SELECT ${bucketExpr(t.gran)} AS day,
               count(*)                     AS events,
               count(DISTINCT session_id)   AS sessions,
               count(DISTINCT anonymous_id) AS users,
@@ -121,7 +145,7 @@ queryRouter.get('/v1/metrics/daily', async (req, res) => {
          FROM events WHERE ${t.cond}`,
     );
     const total = tot[0] || {};
-    res.json({ ...t.label,
+    res.json({ ...t.label, gran: t.gran,
       total: { events: num(total.events), users: num(total.users),
                logged_in: num(total.logged_in), sessions: num(total.sessions) },
       rows: rows.map((r) => ({
@@ -229,7 +253,7 @@ queryRouter.get('/v1/users/daily', async (req, res) => {
   const t = timeCond(req, 30);
   try {
     const { rows } = await pool.query(
-      `SELECT date_trunc('day', ts_server)::date AS day,
+      `SELECT ${bucketExpr(t.gran)} AS day,
               count(DISTINCT anonymous_id) AS users,
               count(DISTINCT customer_id)  AS logged_in,
               count(DISTINCT session_id)   AS sessions
@@ -238,7 +262,7 @@ queryRouter.get('/v1/users/daily', async (req, res) => {
         GROUP BY day
         ORDER BY day`,
     );
-    res.json({ ...t.label, rows: rows.map((r) => ({
+    res.json({ ...t.label, gran: t.gran, rows: rows.map((r) => ({
       day: r.day, users: num(r.users), logged_in: num(r.logged_in), sessions: num(r.sessions),
     })) });
   } catch (e: any) {

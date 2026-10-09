@@ -9,6 +9,16 @@ const fmtDay = (d) => {
   catch { return d; }
 };
 
+// Format an x-axis bucket. Hourly buckets arrive as "YYYY-MM-DDTHH:00" local
+// strings and render as "HH:00"; daily buckets render as "DD Mon".
+const fmtBucket = (d, gran) => {
+  if (gran === 'hour') {
+    const m = /T(\d\d):/.exec(String(d));
+    return m ? `${m[1]}:00` : String(d);
+  }
+  return fmtDay(d);
+};
+
 /** Daily series: data = [{ day, value }]. */
 export function TimeSeries({ data, color = 'var(--brand)', label = 'events' }) {
   if (!data?.length) {
@@ -39,20 +49,21 @@ export function TimeSeries({ data, color = 'var(--brand)', label = 'events' }) {
   );
 }
 
-/** Generic daily multi-line trend. lines = [{ key, name, color }]. */
-export function DailyTrend({ data, lines }) {
+/** Generic daily/hourly multi-line trend. lines = [{ key, name, color }]. */
+export function DailyTrend({ data, lines, gran = 'day' }) {
   if (!data?.length) {
     return <div className="muted" style={{ padding: 40, textAlign: 'center' }}>No data in this range</div>;
   }
+  const fmt = (d) => fmtBucket(d, gran);
   return (
     <ResponsiveContainer width="100%" height={260}>
       <LineChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
         <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="day" tickFormatter={fmtDay} tick={{ fill: 'var(--muted)', fontSize: 12 }} stroke="var(--border)" />
+        <XAxis dataKey="day" tickFormatter={fmt} tick={{ fill: 'var(--muted)', fontSize: 12 }} stroke="var(--border)" />
         <YAxis tick={{ fill: 'var(--muted)', fontSize: 12 }} stroke="var(--border)" allowDecimals={false} />
         <Tooltip
           contentStyle={{ background: 'var(--panel-2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)' }}
-          labelFormatter={fmtDay} />
+          labelFormatter={fmt} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         {lines.map((l) => (
           <Line key={l.key} type="monotone" dataKey={l.key} name={l.name}
@@ -63,20 +74,21 @@ export function DailyTrend({ data, lines }) {
   );
 }
 
-/** Daily users trend: data = [{ day, users, logged_in, sessions }]. */
-export function UsersTrend({ data }) {
+/** Daily/hourly users trend: data = [{ day, users, logged_in, sessions }]. */
+export function UsersTrend({ data, gran = 'day' }) {
   if (!data?.length) {
     return <div className="muted" style={{ padding: 40, textAlign: 'center' }}>No activity in this range</div>;
   }
+  const fmt = (d) => fmtBucket(d, gran);
   return (
     <ResponsiveContainer width="100%" height={260}>
       <LineChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
         <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="day" tickFormatter={fmtDay} tick={{ fill: 'var(--muted)', fontSize: 12 }} stroke="var(--border)" />
+        <XAxis dataKey="day" tickFormatter={fmt} tick={{ fill: 'var(--muted)', fontSize: 12 }} stroke="var(--border)" />
         <YAxis tick={{ fill: 'var(--muted)', fontSize: 12 }} stroke="var(--border)" allowDecimals={false} />
         <Tooltip
           contentStyle={{ background: 'var(--panel-2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)' }}
-          labelFormatter={fmtDay} />
+          labelFormatter={fmt} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         <Line type="monotone" dataKey="users" name="Users" stroke="var(--brand)" strokeWidth={2} dot={false} isAnimationActive={false} />
         <Line type="monotone" dataKey="logged_in" name="Logged-in" stroke="var(--brand-2)" strokeWidth={2} dot={false} isAnimationActive={false} />
