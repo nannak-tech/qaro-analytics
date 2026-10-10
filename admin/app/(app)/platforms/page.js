@@ -16,8 +16,8 @@ export default async function PlatformsView({ searchParams }) {
   const sp = await searchParams;
   const range = parseRange(sp);
 
-  let rows = [], error = null;
-  try { ({ rows } = await getPlatforms(range)); }
+  let rows = [], total = null, error = null;
+  try { ({ rows, total } = await getPlatforms(range)); }
   catch (e) { error = e.message; }
 
   rows = [...rows].sort((a, b) => {
@@ -25,8 +25,10 @@ export default async function PlatformsView({ searchParams }) {
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
   });
 
-  const totUsers = rows.reduce((a, r) => a + r.users, 0);
-  const totSessions = rows.reduce((a, r) => a + r.sessions, 0);
+  // Distinct totals (anonymous + logged-in), matching the Overview page — not
+  // summable from the per-platform rows.
+  const totUsers = (total?.users ?? 0) + (total?.logged_in ?? 0);
+  const totSessions = total?.sessions ?? rows.reduce((a, r) => a + r.sessions, 0);
   const max = Math.max(1, ...rows.map((r) => r.sessions));
 
   return (

@@ -191,10 +191,21 @@ queryRouter.get('/v1/metrics/platforms', async (req, res) => {
         GROUP BY bucket
         ORDER BY sessions DESC, events DESC`,
     );
-    res.json({ ...t.label, rows: rows.map((r) => ({
-      bucket: r.bucket, users: num(r.users), logged_in: num(r.logged_in),
-      sessions: num(r.sessions), events: num(r.events),
-    })) });
+    // Distinct totals over the whole range — NOT summable from the per-platform
+    // rows (a logged-in customer on two platforms would be counted twice).
+    const { rows: tot } = await pool.query(
+      `SELECT count(DISTINCT anonymous_id) AS users,
+              count(DISTINCT customer_id)  AS logged_in,
+              count(DISTINCT session_id)   AS sessions
+         FROM events WHERE ${t.cond}`,
+    );
+    const total = tot[0] || {};
+    res.json({ ...t.label,
+      total: { users: num(total.users), logged_in: num(total.logged_in), sessions: num(total.sessions) },
+      rows: rows.map((r) => ({
+        bucket: r.bucket, users: num(r.users), logged_in: num(r.logged_in),
+        sessions: num(r.sessions), events: num(r.events),
+      })) });
   } catch (e: any) {
     res.status(500).json({ error: e?.message });
   }
