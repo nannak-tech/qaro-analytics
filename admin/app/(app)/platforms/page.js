@@ -25,9 +25,10 @@ export default async function PlatformsView({ searchParams }) {
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
   });
 
-  // Distinct totals (anonymous + logged-in), matching the Overview page — not
-  // summable from the per-platform rows.
-  const totUsers = (total?.users ?? 0) + (total?.logged_in ?? 0);
+  // Unique people (de-duped), matching the Overview page. Not summable from the
+  // per-platform rows — a person who uses two platforms counts once here but in
+  // each platform's row.
+  const totUsers = total?.users ?? 0;
   const totSessions = total?.sessions ?? rows.reduce((a, r) => a + r.sessions, 0);
   const max = Math.max(1, ...rows.map((r) => r.sessions));
 
@@ -89,8 +90,10 @@ export default async function PlatformsView({ searchParams }) {
             </tbody>
           </table>
         )}
-        <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-          Web OS (iOS / Android / Windows / macOS) is captured from build 34 on; earlier web sessions show as “Web - other”.
+        <div className="muted" style={{ fontSize: 12, marginTop: 10, lineHeight: 1.5 }}>
+          “Users” = unique people (a logged-in customer counted once, everyone else by device). The per-platform rows can
+          sum slightly above the total because a few people use more than one platform. “Logged-in” is a subset of Users.
+          <br />Web OS (iOS / Android / Windows / macOS) is captured from build 34 on; earlier web sessions show as “Web - other”.
         </div>
       </div>
     </div>

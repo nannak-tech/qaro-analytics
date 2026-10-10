@@ -71,7 +71,7 @@ export default async function OverviewPage({ searchParams }) {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14, marginBottom: 20 }}>
-        <Stat label="Users" value={((total.users ?? 0) + (total.logged_in ?? 0)).toLocaleString()} />
+        <Stat label="Users" value={(total.users ?? 0).toLocaleString()} />
         <Stat label="Logged-in" value={(total.logged_in ?? 0).toLocaleString()} />
         <Stat label="Sessions" value={(total.sessions ?? 0).toLocaleString()} />
         <Stat label="Total events" value={totalEvents.toLocaleString()} />

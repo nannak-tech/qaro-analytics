@@ -60,6 +60,17 @@ function bucketExpr(gran: 'hour' | 'day'): string {
     : `date_trunc('day', ts_server)::date`;
 }
 
+// Distinct unique PEOPLE for a WHERE condition: a person is their customer_id
+// when they ever logged in (on any device), else their anonymous_id — so a user
+// who browsed anonymously then logged in, or one customer across two devices, is
+// counted once (no double-count between anonymous and logged-in).
+function uniquePeopleQuery(cond: string): string {
+  return `SELECT count(DISTINCT COALESCE('c:' || c, 'a:' || anonymous_id)) AS users
+            FROM (SELECT anonymous_id, max(customer_id)::text AS c
+                    FROM events WHERE ${cond}
+                   GROUP BY anonymous_id) q`;
+}
+
 export const queryRouter = Router();
 queryRouter.use('/v1/metrics', requireQueryKey);
 queryRouter.use('/v1/funnel', requireQueryKey);
@@ -137,13 +148,14 @@ queryRouter.get('/v1/metrics/daily', async (req, res) => {
         ORDER BY day`,
     );
     // Range totals (distinct over the whole range, not summable from per-day).
+    // users = unique people (de-duped across anonymous/logged-in).
     const { rows: tot } = await pool.query(
       `SELECT count(*) AS events,
-              count(DISTINCT anonymous_id) AS users,
               count(DISTINCT customer_id)  AS logged_in,
               count(DISTINCT session_id)   AS sessions
          FROM events WHERE ${t.cond}`,
     );
+    const { rows: up } = await pool.query(uniquePeopleQuery(t.cond));
     // Busiest hour-of-day across the whole range (UAE local time).
     const { rows: bh } = await pool.query(
       `SELECT extract(hour FROM ts_server AT TIME ZONE '${TZ}')::int AS hour, count(*) AS events
@@ -153,7 +165,7 @@ queryRouter.get('/v1/metrics/daily', async (req, res) => {
     const busiest_hour = bh[0] ? { hour: num(bh[0].hour), events: num(bh[0].events) } : null;
     const total = tot[0] || {};
     res.json({ ...t.label, gran: t.gran, busiest_hour,
-      total: { events: num(total.events), users: num(total.users),
+      total: { events: num(total.events), users: num(up[0]?.users),
                logged_in: num(total.logged_in), sessions: num(total.sessions) },
       rows: rows.map((r) => ({
         day: r.day, events: num(r.events), sessions: num(r.sessions), users: num(r.users),
@@ -170,9 +182,7 @@ queryRouter.get('/v1/metrics/daily', async (req, res) => {
 // the browser), so web splits into mobile-web vs desktop by OS.
 queryRouter.get('/v1/metrics/platforms', async (req, res) => {
   const t = timeCond(req, 30);
-  try {
-    const { rows } = await pool.query(
-      `SELECT CASE
+  const BUCKET = `CASE
                 WHEN platform = 'android' THEN 'Android (app)'
                 WHEN platform = 'ios' THEN 'iOS (app)'
                 WHEN platform = 'web' AND os_version = 'iOS' THEN 'Web app - iOS'
@@ -182,30 +192,39 @@ queryRouter.get('/v1/metrics/platforms', async (req, res) => {
                 WHEN platform = 'web' AND os_version = 'Linux' THEN 'Web - Linux'
                 WHEN platform = 'web' THEN 'Web - other'
                 ELSE 'Unknown'
-              END AS bucket,
-              count(DISTINCT anonymous_id) AS users,
-              count(DISTINCT customer_id)  AS logged_in,
-              count(DISTINCT session_id)   AS sessions,
-              count(*)                     AS events
+              END`;
+  try {
+    // logged-in / sessions / events per bucket (simple distinct counts).
+    const { rows: base } = await pool.query(
+      `SELECT ${BUCKET} AS bucket,
+              count(DISTINCT customer_id) AS logged_in,
+              count(DISTINCT session_id)  AS sessions,
+              count(*)                    AS events
          FROM events WHERE ${t.cond}
-        GROUP BY bucket
-        ORDER BY sessions DESC, events DESC`,
+        GROUP BY bucket`,
     );
-    // Distinct totals over the whole range — NOT summable from the per-platform
-    // rows (a logged-in customer on two platforms would be counted twice).
+    // Unique PEOPLE per bucket (de-duped anonymous/logged-in).
+    const { rows: pu } = await pool.query(
+      `SELECT bucket, count(DISTINCT COALESCE('c:' || c, 'a:' || anonymous_id)) AS users
+         FROM (SELECT ${BUCKET} AS bucket, anonymous_id, max(customer_id)::text AS c
+                 FROM events WHERE ${t.cond}
+                GROUP BY ${BUCKET}, anonymous_id) q
+        GROUP BY bucket`,
+    );
+    const uMap = new Map(pu.map((r) => [r.bucket, num(r.users)]));
+    const rows = base
+      .map((r) => ({ bucket: r.bucket, users: uMap.get(r.bucket) || 0,
+                     logged_in: num(r.logged_in), sessions: num(r.sessions), events: num(r.events) }))
+      .sort((a, b) => b.sessions - a.sessions || b.events - a.events);
+    // Distinct global totals (users = unique people, de-duped).
+    const { rows: up } = await pool.query(uniquePeopleQuery(t.cond));
     const { rows: tot } = await pool.query(
-      `SELECT count(DISTINCT anonymous_id) AS users,
-              count(DISTINCT customer_id)  AS logged_in,
-              count(DISTINCT session_id)   AS sessions
+      `SELECT count(DISTINCT customer_id) AS logged_in, count(DISTINCT session_id) AS sessions
          FROM events WHERE ${t.cond}`,
     );
-    const total = tot[0] || {};
     res.json({ ...t.label,
-      total: { users: num(total.users), logged_in: num(total.logged_in), sessions: num(total.sessions) },
-      rows: rows.map((r) => ({
-        bucket: r.bucket, users: num(r.users), logged_in: num(r.logged_in),
-        sessions: num(r.sessions), events: num(r.events),
-      })) });
+      total: { users: num(up[0]?.users), logged_in: num(tot[0]?.logged_in), sessions: num(tot[0]?.sessions) },
+      rows });
   } catch (e: any) {
     res.status(500).json({ error: e?.message });
   }
