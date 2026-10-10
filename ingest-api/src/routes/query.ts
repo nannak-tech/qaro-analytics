@@ -292,19 +292,29 @@ queryRouter.get('/v1/users', async (req, res) => {
   let filter = '';
   if (q) {
     params.push(`%${q}%`);
-    filter = `AND (customer_mobile ILIKE $${params.length} OR anonymous_id ILIKE $${params.length})`;
+    filter = `AND (e.customer_mobile ILIKE $${params.length} OR e.anonymous_id ILIKE $${params.length})`;
   }
   try {
+    // De-dup: map each device (anonymous_id) to its customer_id if it EVER logged
+    // in, so a person who browsed anonymously then logged in is ONE row (a
+    // customer), and a customer across devices collapses to one. Anonymous rows
+    // are devices that never logged in. Count of rows = unique people.
     const { rows } = await pool.query(
-      `SELECT
-         CASE WHEN customer_id IS NOT NULL THEN 'customer' ELSE 'anon' END AS kind,
-         CASE WHEN customer_id IS NOT NULL THEN customer_id::text ELSE anonymous_id END AS uid,
-         max(customer_mobile)        AS mobile,
-         count(*)                    AS events,
-         count(DISTINCT session_id)  AS sessions,
-         min(ts_server)              AS first_seen,
-         max(ts_server)              AS last_seen
-       FROM events
+      `WITH dev AS (
+         SELECT anonymous_id, max(customer_id) AS cust
+           FROM events WHERE ${t.cond}
+          GROUP BY anonymous_id
+       )
+       SELECT
+         CASE WHEN dev.cust IS NOT NULL THEN 'customer' ELSE 'anon' END AS kind,
+         CASE WHEN dev.cust IS NOT NULL THEN dev.cust::text ELSE e.anonymous_id END AS uid,
+         max(e.customer_mobile)        AS mobile,
+         count(*)                      AS events,
+         count(DISTINCT e.session_id)  AS sessions,
+         min(e.ts_server)              AS first_seen,
+         max(e.ts_server)              AS last_seen
+       FROM events e
+       JOIN dev ON e.anonymous_id = dev.anonymous_id
        WHERE ${t.cond} ${filter}
        GROUP BY kind, uid
        ORDER BY last_seen DESC
