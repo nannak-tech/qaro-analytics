@@ -91,8 +91,9 @@ export default async function PlatformsView({ searchParams }) {
           </table>
         )}
         <div className="muted" style={{ fontSize: 12, marginTop: 10, lineHeight: 1.5 }}>
-          “Users” = unique people (a logged-in customer counted once, everyone else by device). The per-platform rows can
-          sum slightly above the total because a few people use more than one platform. “Logged-in” is a subset of Users.
+          “Users” = unique people (a logged-in customer counted once, everyone else by device). Each person is counted on
+          their primary platform (where they have the most sessions), so Users and Logged-in add up to the totals above.
+          “Logged-in” is a subset of Users.
           <br />Web OS (iOS / Android / Windows / macOS) is captured from build 34 on; earlier web sessions show as “Web - other”.
         </div>
       </div>

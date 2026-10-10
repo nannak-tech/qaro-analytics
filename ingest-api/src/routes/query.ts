@@ -194,29 +194,51 @@ queryRouter.get('/v1/metrics/platforms', async (req, res) => {
                 ELSE 'Unknown'
               END`;
   try {
-    // logged-in / sessions / events per bucket (simple distinct counts).
+    // sessions + events per bucket (a session belongs to one platform).
     const { rows: base } = await pool.query(
       `SELECT ${BUCKET} AS bucket,
-              count(DISTINCT customer_id) AS logged_in,
-              count(DISTINCT session_id)  AS sessions,
-              count(*)                    AS events
+              count(DISTINCT session_id) AS sessions,
+              count(*)                   AS events
          FROM events WHERE ${t.cond}
         GROUP BY bucket`,
     );
-    // Unique PEOPLE per bucket (de-duped anonymous/logged-in).
-    const { rows: pu } = await pool.query(
-      `SELECT bucket, count(DISTINCT COALESCE('c:' || c, 'a:' || anonymous_id)) AS users
-         FROM (SELECT ${BUCKET} AS bucket, anonymous_id, max(customer_id)::text AS c
-                 FROM events WHERE ${t.cond}
-                GROUP BY ${BUCKET}, anonymous_id) q
-        GROUP BY bucket`,
+    // Assign each unique PERSON to ONE primary platform (most sessions, then
+    // events) so per-platform users/logged-in PARTITION the totals and add up
+    // exactly. A person is their customer_id if they ever logged in, else device.
+    const { rows: pp } = await pool.query(
+      `WITH dev AS (
+         SELECT anonymous_id, max(customer_id) AS cust
+           FROM events WHERE ${t.cond} GROUP BY anonymous_id
+       ),
+       ev AS (
+         SELECT CASE WHEN dev.cust IS NOT NULL THEN 'c:' || dev.cust::text ELSE 'a:' || e.anonymous_id END AS pid,
+                (dev.cust IS NOT NULL) AS is_customer,
+                ${BUCKET} AS bucket,
+                e.session_id
+           FROM events e JOIN dev ON e.anonymous_id = dev.anonymous_id
+          WHERE ${t.cond}
+       ),
+       per AS (
+         SELECT pid, bool_or(is_customer) AS is_customer, bucket,
+                count(DISTINCT session_id) AS sess, count(*) AS evs
+           FROM ev GROUP BY pid, bucket
+       ),
+       ranked AS (
+         SELECT pid, is_customer, bucket,
+                row_number() OVER (PARTITION BY pid ORDER BY sess DESC, evs DESC) AS rn
+           FROM per
+       )
+       SELECT bucket, count(*) AS users, count(*) FILTER (WHERE is_customer) AS logged_in
+         FROM ranked WHERE rn = 1 GROUP BY bucket`,
     );
-    const uMap = new Map(pu.map((r) => [r.bucket, num(r.users)]));
+    const pMap = new Map(pp.map((r) => [r.bucket, { users: num(r.users), logged_in: num(r.logged_in) }]));
     const rows = base
-      .map((r) => ({ bucket: r.bucket, users: uMap.get(r.bucket) || 0,
-                     logged_in: num(r.logged_in), sessions: num(r.sessions), events: num(r.events) }))
+      .map((r) => ({ bucket: r.bucket,
+                     users: pMap.get(r.bucket)?.users || 0,
+                     logged_in: pMap.get(r.bucket)?.logged_in || 0,
+                     sessions: num(r.sessions), events: num(r.events) }))
       .sort((a, b) => b.sessions - a.sessions || b.events - a.events);
-    // Distinct global totals (users = unique people, de-duped).
+    // Global totals — now equal to the per-platform sums.
     const { rows: up } = await pool.query(uniquePeopleQuery(t.cond));
     const { rows: tot } = await pool.query(
       `SELECT count(DISTINCT customer_id) AS logged_in, count(DISTINCT session_id) AS sessions
