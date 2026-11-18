@@ -51,3 +51,7 @@ export const getEstablishments = (range) =>
 
 export const getEstablishmentActivity = (id, range) =>
   q(`/v1/establishments/activity?id=${encodeURIComponent(id)}&${rangeQS(range)}`);
+
+// The qaro.ae garage portfolio funnel (profile view → claim → form → paid) per garage.
+export const getGaragePortfolio = (range) =>
+  q(`/v1/garage-portfolio?${rangeQS(range)}`);

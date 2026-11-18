@@ -16,6 +16,7 @@ export default async function AppLayout({ children }) {
         { href: '/users', label: 'User activity' },
         { href: '/platforms', label: 'Platforms' },
         { href: '/establishments', label: 'Establishments' },
+        { href: '/garage-portfolio', label: 'Garage portfolio' },
         { href: '/ads', label: 'Ad metrics' },
         { href: '/partners', label: 'Partners' },
       ]
