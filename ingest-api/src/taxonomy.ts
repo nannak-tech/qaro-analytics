@@ -24,6 +24,10 @@ export const EVENT_NAMES = [
   'login', 'logout', 'signup', 'otp_requested', 'otp_verified',
   // engagement
   'favorite_add', 'share', 'review_submitted',
+  // garage portfolio (qaro.ae web): the listing/claim/payment funnel, each
+  // stamped with properties.establishment_id so it attributes per garage.
+  'claim_started', 'listing_view', 'listing_started', 'listing_submitted',
+  'listing_payment_started', 'listing_payment_done',
 ] as const;
 
 export type EventName = (typeof EVENT_NAMES)[number];
@@ -46,6 +50,8 @@ export const PROVENANCE: Record<EventName, 'user' | 'system'> = {
   order_placed: 'user', order_paid: 'system', order_cancelled: 'user',
   login: 'user', logout: 'user', signup: 'user', otp_requested: 'user', otp_verified: 'user',
   favorite_add: 'user', share: 'user', review_submitted: 'user',
+  claim_started: 'user', listing_view: 'system', listing_started: 'user', listing_submitted: 'user',
+  listing_payment_started: 'user', listing_payment_done: 'system',
 };
 
 export const AD_EVENTS = new Set<EventName>(['ad_impression', 'ad_click']);

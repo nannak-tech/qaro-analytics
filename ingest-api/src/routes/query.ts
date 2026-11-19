@@ -443,6 +443,63 @@ queryRouter.get('/v1/establishments', async (req, res) => {
   }
 });
 
+// ---- Garage portfolio: the qaro.ae listing/claim/payment funnel per garage --
+// The web funnel (lib/garage-directory/garages/garage-listing on qaro.ae) stamps
+// each event with properties.establishment_id, so a claimed garage's path
+// (profile view → claim opened → form filled → submitted → paid) rolls up here.
+const PORTFOLIO_EVENTS = `event_name IN ('provider_view','claim_started','listing_view',
+  'listing_started','listing_submitted','listing_payment_started','listing_payment_done')`;
+
+queryRouter.get('/v1/garage-portfolio', async (req, res) => {
+  const t = timeCond(req, 30);
+  try {
+    const perGarage = pool.query(
+      `SELECT properties->>'establishment_id' AS id,
+              max(properties->>'establishment_name') AS name,
+              count(*) FILTER (WHERE event_name = 'provider_view') AS views,
+              count(*) FILTER (WHERE event_name = 'claim_started') AS claims,
+              count(*) FILTER (WHERE event_name = 'listing_started') AS started,
+              count(*) FILTER (WHERE event_name = 'listing_submitted') AS submitted,
+              count(*) FILTER (WHERE event_name = 'listing_payment_started') AS pay_started,
+              count(*) FILTER (WHERE event_name = 'listing_payment_done') AS paid,
+              count(DISTINCT COALESCE(customer_id::text, anonymous_id)) AS people,
+              max(ts_server) AS last_seen
+         FROM events
+        WHERE properties->>'establishment_id' IS NOT NULL
+          AND properties->>'establishment_id' <> ''
+          AND ${PORTFOLIO_EVENTS}
+          AND ${t.cond}
+        GROUP BY id
+        ORDER BY paid DESC, submitted DESC, claims DESC, views DESC
+        LIMIT 300`,
+    );
+    // A brand-new garage (not claiming an existing profile) carries no
+    // establishment_id, so its listing/payment events are summed separately to
+    // keep the totals honest.
+    const newGarage = pool.query(
+      `SELECT count(*) FILTER (WHERE event_name = 'listing_submitted') AS submitted,
+              count(*) FILTER (WHERE event_name = 'listing_payment_done') AS paid
+         FROM events
+        WHERE (properties->>'establishment_id' IS NULL OR properties->>'establishment_id' = '')
+          AND ${PORTFOLIO_EVENTS} AND ${t.cond}`,
+    );
+    const [g, n] = await Promise.all([perGarage, newGarage]);
+    const nm = n.rows[0] || {};
+    res.json({
+      ...t.label,
+      rows: g.rows.map((r) => ({
+        id: r.id, name: r.name || null,
+        views: num(r.views), claims: num(r.claims), started: num(r.started),
+        submitted: num(r.submitted), pay_started: num(r.pay_started), paid: num(r.paid),
+        people: num(r.people), last_seen: r.last_seen,
+      })),
+      new_garage: { submitted: num(nm.submitted), paid: num(nm.paid) },
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message });
+  }
+});
+
 // ---- One establishment: page views + activity breakdown + customers ---------
 queryRouter.get('/v1/establishments/activity', async (req, res) => {
   const id = String(req.query.id || '').trim();
