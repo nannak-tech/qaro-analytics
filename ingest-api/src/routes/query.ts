@@ -74,6 +74,7 @@ function uniquePeopleQuery(cond: string): string {
 export const queryRouter = Router();
 queryRouter.use('/v1/metrics', requireQueryKey);
 queryRouter.use('/v1/funnel', requireQueryKey);
+queryRouter.use('/v1/garage-portfolio', requireQueryKey);
 
 // ---- Ad metrics: per-campaign impressions/clicks/CTR for a partner ----------
 queryRouter.get('/v1/metrics/ad', async (req, res) => {
