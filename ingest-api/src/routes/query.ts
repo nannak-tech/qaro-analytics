@@ -30,25 +30,38 @@ function timeCond(
   req: { query: any },
   defDays: number,
 ): { cond: string; label: Record<string, unknown>; gran: 'hour' | 'day' } {
+  // Environment scope. Dashboards default to production — real App Store / Play
+  // Store installs, tagged by the app build's install channel (events.env). A
+  // non-prod or un-tagged build is 'testflight'/'sideload'/'dev'/'unknown' and
+  // never shows in the default view. `?env=testflight` (etc.) inspects a channel;
+  // `?env=all` drops the filter. See docs/ENV_SEPARATION.md.
+  const env = /^[a-z]+$/.test(String(req.query.env || '')) ? String(req.query.env) : 'prod';
+  const envCond = env === 'all' ? 'TRUE' : `env = '${env}'`;
+  const wrap = (
+    window: string,
+    label: Record<string, unknown>,
+    gran: 'hour' | 'day',
+  ) => ({ cond: `(${window}) AND ${envCond}`, label: { ...label, env }, gran });
+
   const from = String(req.query.from || '').trim();
   const to = String(req.query.to || (DATE_RE.test(from) ? from : '')).trim();
   if (DATE_RE.test(from) && DATE_RE.test(to)) {
     if (from === to) {
       // One calendar day in local time → hourly granularity.
-      return {
-        cond: `ts_server >= ('${from}'::timestamp AT TIME ZONE '${TZ}') AND ts_server < (('${from}'::timestamp + interval '1 day') AT TIME ZONE '${TZ}')`,
-        label: { from, to },
-        gran: 'hour',
-      };
+      return wrap(
+        `ts_server >= ('${from}'::timestamp AT TIME ZONE '${TZ}') AND ts_server < (('${from}'::timestamp + interval '1 day') AT TIME ZONE '${TZ}')`,
+        { from, to },
+        'hour',
+      );
     }
-    return {
-      cond: `ts_server >= '${from}'::date AND ts_server < ('${to}'::date + interval '1 day')`,
-      label: { from, to },
-      gran: 'day',
-    };
+    return wrap(
+      `ts_server >= '${from}'::date AND ts_server < ('${to}'::date + interval '1 day')`,
+      { from, to },
+      'day',
+    );
   }
   const d = days(req.query.days, defDays);
-  return { cond: `ts_server >= now() - interval '${d} days'`, label: { days: d }, gran: d <= 1 ? 'hour' : 'day' };
+  return wrap(`ts_server >= now() - interval '${d} days'`, { days: d }, d <= 1 ? 'hour' : 'day');
 }
 
 // Bucket expression + output key for the daily/trend endpoints, per granularity.

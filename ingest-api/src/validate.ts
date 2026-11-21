@@ -19,6 +19,11 @@ const asStr = (v: unknown, max = 512): string =>
 const asNumOrNull = (v: unknown): number | null =>
   typeof v === 'number' && Number.isFinite(v) ? v : null;
 
+// Install channel reported by the app build (app.env). Unknown values collapse to
+// 'unknown' so a non-prod or un-tagged build can never masquerade as production.
+// See docs/ENV_SEPARATION.md.
+const ENVS = new Set(['prod', 'testflight', 'sideload', 'dev', 'staging']);
+
 function isoClient(v: unknown, fallback: Date): string {
   const d = typeof v === 'string' ? new Date(v) : null;
   return (d && !isNaN(d.getTime()) ? d : fallback).toISOString();
@@ -71,6 +76,7 @@ export function validateEvent(raw: any, ctx: IngestContext): Ok | Err {
     app_name: asStr(app.name, 64) || ctx.appName,
     app_version: asStr(app.version, 32),
     platform: asStr(app.platform, 16),
+    env: ENVS.has(asStr(app.env, 16)) ? asStr(app.env, 16) : 'unknown',
     device_model: asStr(device.model, 64),
     os_version: asStr(device.os_version, 32),
     locale: asStr(device.locale, 16),

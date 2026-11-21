@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS events (
     app_name     TEXT,
     app_version  TEXT,
     platform     TEXT,
+    env          TEXT        NOT NULL DEFAULT 'unknown',  -- install channel: prod|testflight|sideload|dev|unknown
     device_model TEXT,
     os_version   TEXT,
     locale       TEXT,
@@ -54,6 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_events_mobile    ON events (customer_mobile) WHER
 CREATE INDEX IF NOT EXISTS idx_events_campaign  ON events (partner_id, campaign_id, ts_server) WHERE campaign_id <> '';
 CREATE INDEX IF NOT EXISTS idx_events_props_gin ON events USING gin (properties);
 CREATE INDEX IF NOT EXISTS idx_events_establishment ON events ((properties->>'establishment_id')) WHERE properties->>'establishment_id' IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_events_env ON events (env, event_name, ts_server DESC);
 
 -- ===========================================================================
 -- CONTROL PLANE — ingest keys, partners/orgs, seats, campaigns, ads.
