@@ -29,6 +29,7 @@ export interface EventRow {
   app_name: string;
   app_version: string;
   platform: string;
+  env: string;         // install channel: prod|testflight|sideload|dev|unknown
   device_model: string;
   os_version: string;
   locale: string;
@@ -47,7 +48,7 @@ export interface EventRow {
 const COLS = [
   'event_id', 'event_name', 'provenance', 'ts_server', 'ts_client',
   'anonymous_id', 'customer_id', 'customer_mobile', 'session_id', 'app_name', 'app_version',
-  'platform', 'device_model', 'os_version', 'locale', 'screen', 'lat', 'lng',
+  'platform', 'env', 'device_model', 'os_version', 'locale', 'screen', 'lat', 'lng',
   'campaign_id', 'ad_id', 'placement', 'partner_id', 'geo_country', 'geo_city',
   'properties',
 ] as const;
@@ -64,7 +65,7 @@ export async function insertEvents(rows: EventRow[]): Promise<void> {
     values.push(
       r.event_id, r.event_name, r.provenance, r.ts_server, r.ts_client,
       r.anonymous_id, r.customer_id, r.customer_mobile, r.session_id, r.app_name, r.app_version,
-      r.platform, r.device_model, r.os_version, r.locale, r.screen, r.lat, r.lng,
+      r.platform, r.env, r.device_model, r.os_version, r.locale, r.screen, r.lat, r.lng,
       r.campaign_id, r.ad_id, r.placement, r.partner_id, r.geo_country, r.geo_city,
       JSON.stringify(r.properties),
     );
